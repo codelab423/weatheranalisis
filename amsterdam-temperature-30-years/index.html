@@ -67,6 +67,7 @@
   }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
 
+  .lang-row { display:flex; justify-content:flex-end; gap:6px; margin: 4px 0 10px; }
   header.page-head { margin-bottom: 22px; }
   header.page-head h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
   header.page-head p { margin: 0; color: var(--text-secondary); font-size: 14.5px; max-width: 720px; line-height: 1.5; }
@@ -201,13 +202,18 @@
 <div class="viz-root">
 <div class="wrap">
 
+  <div class="lang-row">
+    <button class="chip" id="langEn">English</button>
+    <button class="chip" id="langNl">Nederlands</button>
+  </div>
+
   <header class="page-head">
-    <h1>Amsterdam Temperature Anomalies, 1996–2025</h1>
-    <p>Hourly KNMI station readings for Amsterdam, aggregated to daily averages and compared against a 30‑year day‑of‑year normal. This dashboard surfaces the days that broke furthest from that normal — and the real weather events behind the biggest swings.</p>
+    <h1 id="headerTitle">Amsterdam Temperature Anomalies, 1996–2025</h1>
+    <p id="headerSub">Hourly KNMI station readings for Amsterdam Schiphol (station 240), aggregated to daily averages and compared against a 30‑year day‑of‑year normal. This dashboard surfaces the days that broke furthest from that normal — and the real weather events behind the biggest swings.</p>
   </header>
 
   <div class="summary-card" id="summaryCard">
-    <div class="summary-label">Key findings</div>
+    <div class="summary-label" id="summaryLabel">Key findings</div>
     <p class="summary-text" id="summaryText"></p>
   </div>
 
@@ -215,14 +221,14 @@
 
   <div class="card">
     <h2 id="mainChartTitle">Daily temperature anomaly vs. normal</h2>
-    <p class="card-sub">Each bar is one day's average temperature, minus the typical temperature for that calendar day (based on a ±7‑day window across all 30 years). Markers mark the 12 events profiled below. Click and drag across a period to zoom in; double‑click (or the button) to zoom back out.</p>
+    <p class="card-sub" id="mainChartSub">Each bar is one day's average temperature, minus the typical temperature for that calendar day (based on a ±7‑day window across all 30 years). Markers mark the 12 events profiled below. Click and drag across a period to zoom in; double‑click (or the button) to zoom back out.</p>
     <div class="filter-row">
-      <span class="flabel">Range:</span>
+      <span class="flabel" id="rangeLabel">Range:</span>
       <button class="chip active" data-range="all">1996–2025</button>
       <button class="chip" data-range="1996-2005">1996–2005</button>
       <button class="chip" data-range="2006-2015">2006–2015</button>
       <button class="chip" data-range="2016-2025">2016–2025</button>
-      <button class="chip" data-range="last5">Last 5 years</button>
+      <button class="chip" data-range="last5" id="last5Btn">Last 5 years</button>
       <button class="chip" id="mainResetZoom">Reset zoom</button>
       <span class="flabel" id="mainZoomHint"></span>
     </div>
@@ -231,15 +237,15 @@
       <div class="tooltip" id="mainTooltip"></div>
     </div>
     <div class="legend-row">
-      <span class="legend-item"><span class="swatch" style="background:var(--red)"></span>Warmer than normal</span>
-      <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span>Colder than normal</span>
-      <span class="legend-item"><span class="swatch" style="background:var(--orange); border-radius:50%; width:8px;height:8px;"></span>Profiled event</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--red)"></span><span id="legendWarmer">Warmer than normal</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span><span id="legendColder">Colder than normal</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--orange); border-radius:50%; width:8px;height:8px;"></span><span id="legendEvent">Profiled event</span></span>
     </div>
   </div>
 
   <div class="card">
-    <h2>Every day, 1996–2025</h2>
-    <p class="card-sub">Each row is a year, each column a day of the year. Color shows how far that day's average temperature sat from normal — deep red for exceptional warmth, deep blue for exceptional cold. Click and drag a box over any region to zoom in; double‑click (or the button) to zoom back out.</p>
+    <h2 id="calChartTitle">Every day, 1996–2025</h2>
+    <p class="card-sub" id="calChartSub">Each row is a year, each column a day of the year. Color shows how far that day's average temperature sat from normal — deep red for exceptional warmth, deep blue for exceptional cold. Click and drag a box over any region to zoom in; double‑click (or the button) to zoom back out.</p>
     <div class="filter-row">
       <button class="chip" id="calResetZoom">Reset zoom</button>
       <span class="flabel" id="calZoomHint">Showing all 30 years</span>
@@ -252,26 +258,28 @@
   </div>
 
   <div class="card">
-    <h2>Biggest anomalies, ranked</h2>
-    <p class="card-sub">The days furthest from normal in the selected range. Rows marked <span class="story-flag">● story</span> are profiled below — click any row to jump to it or highlight it on the chart.</p>
+    <h2 id="rankTitle">Biggest anomalies, ranked</h2>
+    <p class="card-sub" id="rankSub">The days furthest from normal in the selected range. Rows marked <span class="story-flag">● story</span> are profiled below — click any row to jump to it or highlight it on the chart.</p>
     <div class="tabs">
       <button class="chip active" data-tab="warm">Warmest anomalies</button>
       <button class="chip" data-tab="cold">Coldest anomalies</button>
     </div>
     <table class="rank-table">
-      <thead><tr><th>#</th><th>Date</th><th class="num">Avg temp</th><th class="num">Normal</th><th class="num">Anomaly</th><th class="num">Day max / min</th><th></th></tr></thead>
+      <thead><tr>
+        <th id="thRank">#</th><th id="thDate">Date</th><th class="num" id="thAvg">Avg temp</th><th class="num" id="thNormal">Normal</th><th class="num" id="thAnomaly">Anomaly</th><th class="num" id="thMaxMin">Day max / min</th><th></th>
+      </tr></thead>
       <tbody id="rankBody"></tbody>
     </table>
   </div>
 
   <div class="card">
-    <h2>The events behind the anomalies</h2>
-    <p class="card-sub">Twelve of the most extreme days in this record, matched with the news coverage of the weather event that caused them. Each mini‑chart shows hourly temperature for the surrounding nine days.</p>
+    <h2 id="eventsTitle">The events behind the anomalies</h2>
+    <p class="card-sub" id="eventsSub">Twelve of the most extreme days in this record, matched with the news coverage of the weather event that caused them. Each mini‑chart shows hourly temperature for the surrounding nine days.</p>
     <div class="events-grid" id="eventsGrid"></div>
   </div>
 
-  <footer class="page-foot">
-    Data: hourly temperature observations, Amsterdam (KNMI), Jan 1996 – Dec 2025, 262,992 hourly readings aggregated to 10,958 days. "Normal" = mean of that calendar day ± 7 days across all 30 years. Event descriptions summarize public reporting cited on each card; figures there refer to national/regional records (De Bilt, Gilze‑Rijen, etc.), which may differ slightly from this Amsterdam station's own reading on the same day.
+  <footer class="page-foot" id="pageFooter">
+    Data: hourly temperature observations, Amsterdam Schiphol (KNMI station 240), Jan 1996 – Dec 2025, 262,992 hourly readings aggregated to 10,958 days. "Normal" = mean of that calendar day ± 7 days across all 30 years. Event descriptions summarize public reporting cited on each card; figures there refer to national/regional records (De Bilt, Gilze‑Rijen, etc.), which may differ slightly from this Schiphol station's own reading on the same day.
   </footer>
 
 </div>
@@ -293,20 +301,27 @@
   var DAILY_BY_DATE = {};
   DAILY.forEach(function (d) { DAILY_BY_DATE[d.d] = d; });
 
-  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var MONTHS = {
+    en: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+    nl: ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"]
+  };
+  var LANG = (localStorage.getItem('dashLang') === 'nl') ? 'nl' : 'en';
   function fmtDate(iso) {
     var p = iso.split("-"); var y = +p[0], m = +p[1], d = +p[2];
-    return MONTHS[m - 1] + " " + d + ", " + y;
+    var mon = MONTHS[LANG][m - 1];
+    return LANG === 'nl' ? (d + " " + mon + " " + y) : (mon + " " + d + ", " + y);
   }
   function fmtDateShort(iso) {
     var p = iso.split("-"); var m = +p[1], d = +p[2];
-    return MONTHS[m - 1] + " " + d;
+    var mon = MONTHS[LANG][m - 1];
+    return LANG === 'nl' ? (d + " " + mon) : (mon + " " + d);
   }
   function fmtDateTime(isoT) {
     var parts = isoT.split("T");
-    return fmtDateShort(parts[0]) + ", " + parts[1];
+    return fmtDateShort(parts[0]) + (LANG === 'nl' ? " om " : ", ") + parts[1];
   }
   function sign(n) { return n > 0 ? "+" : ""; }
+  function t(en, nl) { return LANG === 'nl' ? nl : en; }
   function round1(n) { return Math.round(n * 10) / 10; }
 
   /* ---------- curated events ---------- */
@@ -315,75 +330,105 @@
       date: "2025-07-01", type: "heat",
       headline: "Hottest July 1st on record",
       desc: "De Bilt hit 33.2°C at 1:10pm — the hottest July 1st since national records began in 1901, breaking the previous mark of 33.1°C from 2015. Eindhoven reached 37.6°C the same afternoon. It was the seventh date-specific heat record broken in the Netherlands that year, and the opening day of the country's first official heatwave in three years.",
+      headline_nl: "Warmste 1 juli ooit gemeten",
+      desc_nl: "De Bilt haalde om 13:10 uur 33,2°C — de warmste 1 juli sinds het begin van de landelijke metingen in 1901, en daarmee het oude record van 33,1°C uit 2015 verbroken. Eindhoven kwam die middag zelfs tot 37,6°C. Het was het zevende datumrecord voor hitte dat dat jaar in Nederland sneuvelde, en de eerste dag van de eerste officiële hittegolf in drie jaar.",
       source: { name: "NL Times", url: "https://nltimes.nl/2025/07/01/netherlands-sets-july-1-heat-record-de-bilt-hits-332-degrees" }
     },
     {
       date: "2019-07-25", type: "heat",
       headline: "The day the Netherlands broke 40°C for the first time ever",
       desc: "Gilze-Rijen recorded 40.7°C, the highest temperature ever measured in the country and the first time Dutch thermometers topped 40 degrees. The KNMI station at De Bilt reached 37.5°C, itself an all-time record for that site, one day after the national record had already been shattered at 39.3°C.",
+      headline_nl: "De dag dat Nederland voor het eerst de 40°C doorbrak",
+      desc_nl: "Gilze-Rijen mat 40,7°C, de hoogste temperatuur ooit in Nederland en de eerste keer dat de 40 graden werd doorbroken. KNMI-station De Bilt kwam die dag tot 37,5°C, zelf ook een absoluut record voor dat station — één dag nadat het nationale record al was verbroken met 39,3°C.",
       source: { name: "NL Times", url: "https://nltimes.nl/2019/07/25/dutch-thermometers-top-40-degrees-first-time-ever-brief-debate" }
     },
     {
       date: "2022-07-19", type: "heat",
       headline: "Hottest July 19th ever, part of the heatwave that broke the UK's all-time record",
-      desc: "Maastricht reached 39.5°C, the hottest July 19th on record in the Netherlands and well above the previous mark of 37.1°C set in 2006. The same heatwave pushed the UK past 40°C for the first time in its history, with 40.3°C recorded in Lincolnshire — a continent-wide event driven by a heat dome over Western Europe.",
-      source: { name: "Yale Climate Connections", url: "https://yaleclimateconnections.org/2022/07/horrific-heat-descends-upon-western-europe-104f-in-london/" }
+      desc: "Maastricht reached 39.5°C, a new all-time record for that city and among the warmest days ever measured in the Netherlands. The same heatwave pushed the UK past 40°C for the first time in its history, with 40.3°C recorded in Lincolnshire — a continent-wide event driven by a heat dome over Western Europe.",
+      headline_nl: "Warmste 19 juli ooit, tijdens de hittegolf die ook het Britse hitterecord brak",
+      desc_nl: "Maastricht kwam tot 39,5°C, een nieuw absoluut record voor die stad en één van de warmste dagen ooit gemeten in Nederland. Dezelfde hittegolf duwde het Verenigd Koninkrijk voor het eerst in de geschiedenis over de 40°C, met 40,3°C in Lincolnshire — een hitte-gebeurtenis die heel West-Europa trof.",
+      source: { name: "DutchNews.nl", url: "https://www.dutchnews.nl/2022/07/maastricht-hits-39-5-celsius-as-nl-sizzles-in-a-mini-heatwave/" }
     },
     {
       date: "2018-07-26", type: "heat",
       headline: "The warmest, driest summer in 300 years",
       desc: "This day sat inside the first of two back-to-back heatwaves (Jul 15–27 and Jul 29–Aug 7) that made summer 2018 the warmest ever recorded in the Netherlands, with De Bilt averaging 19°C — two degrees above normal. Combined with just 105mm of rain over three months, it produced one of the country's most severe droughts on record.",
+      headline_nl: "De warmste, droogste zomer in 300 jaar",
+      desc_nl: "Deze dag viel in de eerste van twee opeenvolgende hittegolven (15–27 juli en 29 juli–7 augustus) die zomer 2018 tot de warmste ooit gemeten zomer in Nederland maakten, met een gemiddelde van 19°C in De Bilt — twee graden boven normaal. Met slechts 105 mm regen in drie maanden zorgde dit voor een van de ernstigste droogtes ooit gemeten.",
       source: { name: "DutchNews.nl", url: "https://www.dutchnews.nl/2018/08/this-summer-has-been-the-warmest-in-300-years-knmi/" }
     },
     {
       date: "2007-04-15", type: "heat",
       headline: "Warmest April day in over a century, in the warmest April since 1706",
       desc: "De Bilt reached 28.9°C — the warmest April day the Netherlands had seen in more than a hundred years — while Westdorpe hit 29.7°C nationally. It capped a freakishly warm month: April 2007 averaged 13.1°C against a normal of 8.3°C, the warmest April since regular measurements began in 1706, with a record seven \"summer days\" (25°C+) at De Bilt.",
+      headline_nl: "Warmste aprildag in meer dan een eeuw, in de warmste april sinds 1706",
+      desc_nl: "De Bilt kwam tot 28,9°C — de warmste aprildag in meer dan honderd jaar — terwijl Westdorpe landelijk zelfs 29,7°C haalde. Dit was de kroon op een uitzonderlijk warme maand: april 2007 kwam gemiddeld uit op 13,1°C tegen een normaal van 8,3°C, de warmste april sinds het begin van de reguliere metingen in 1706, met een recordaantal van zeven zomerse dagen (25°C of meer) in De Bilt.",
       source: { name: "KNMI", url: "https://www.knmi.nl/over-het-knmi/nieuws/april-2007-extreem-warm-zonnig-en-droog" }
     },
     {
       date: "1998-05-12", type: "heat",
       headline: "The longest heatwave May has ever produced",
-      desc: "De Bilt hit 32.0°C on this day, in the middle of a seven-day run (May 9–15, 1998) where temperatures topped 25°C every single day — the longest heatwave ever recorded in May in the Netherlands. The following night set a century record: the temperature at De Bilt never dropped below 16.7°C.",
-      source: { name: "KNMI", url: "https://www.knmi.nl/over-het-knmi/nieuws/extreme-hitte-in-de-zomer-van-1998" }
+      desc: "Eindhoven reached 32.5°C on this day, the hottest moment of a seven-day regional heatwave (May 9–15, 1998, felt most strongly at Westdorpe, Woensdrecht, Gilze-Rijen and Eindhoven) — still the longest heatwave ever recorded in May in the Netherlands. De Bilt itself stayed just short of official heatwave criteria that week; the only May heatwave ever recorded there was in 1922.",
+      headline_nl: "De langste hittegolf die mei ooit heeft opgeleverd",
+      desc_nl: "Eindhoven kwam deze dag tot 32,5°C, het hoogtepunt van een zeven dagen durende regionale hittegolf (9–15 mei 1998, vooral gevoeld in Westdorpe, Woensdrecht, Gilze-Rijen en Eindhoven) — nog altijd de langste hittegolf ooit gemeten in mei in Nederland. De Bilt zelf haalde die week net geen officiële hittegolf; de enige mei-hittegolf ooit in De Bilt was in 1922.",
+      source: { name: "KNMI", url: "https://www.knmi.nl/over-het-knmi/nieuws/de-record-ijsheiligenzomer-van-1998" }
     },
     {
       date: "2012-02-04", type: "cold",
       headline: "A Siberian cold wave grips Europe",
       desc: "De Bilt fell to -18.9°C, the coldest reading there since 1956, while Lelystad recorded a national low of -22.8°C — the Netherlands' coldest temperature since 1985. A blocked Siberian high parked freezing air over the continent for two weeks; by mid-February the cold wave's European death toll had passed 650, most from exposure in Eastern Europe.",
+      headline_nl: "Een Siberische koudegolf grijpt Europa in haar greep",
+      desc_nl: "De Bilt zakte naar -18,9°C, de laagste waarde daar sinds 1956, terwijl Lelystad een landelijk minimum van -22,8°C mat — de laagste temperatuur in Nederland sinds 1985. Een geblokkeerd Siberisch hogedrukgebied hield twee weken lang ijzige lucht boven het continent vast; medio februari had de koudegolf in heel Europa al meer dan 650 levens geëist, de meeste door onderkoeling in Oost-Europa.",
       source: { name: "Wikipedia — Early 2012 European cold wave", url: "https://en.wikipedia.org/wiki/Early_2012_European_cold_wave" }
     },
     {
       date: "1997-01-01", type: "cold",
       headline: "A brutal New Year opens the coldest winter since 1979",
       desc: "This freezing New Year's Day sat inside the harsh winter of 1996–97, which finished as the Netherlands' coldest since 1979. De Bilt logged 104 frost days between December and April, with 26 days that never rose above freezing at all (a normal winter has about 10). Parts of the north had their coldest winter since 1963.",
+      headline_nl: "Een bittere jaarwisseling opent de koudste winter sinds 1979",
+      desc_nl: "Deze ijzige Nieuwjaarsdag viel middenin de strenge winter van 1996–97, die uiteindelijk de koudste sinds 1979 werd. De Bilt telde tussen december en april 104 vorstdagen, waarvan 26 ijsdagen die de hele dag onder het vriespunt bleven (normaal zijn dat er zo'n 10). In delen van het noorden was het zelfs de koudste winter sinds 1963.",
       source: { name: "KNMI", url: "https://www.knmi.nl/over-het-knmi/nieuws/winter-1996-duurde-lang-en-was-koud-zonnig-en-droog" }
     },
     {
       date: "2010-12-02", type: "cold",
       headline: "The coldest \"ice day\" of the century — and the snow chaos that followed",
       desc: "De Bilt's temperature never climbed above -6.1°C, the coldest full ice-day the Netherlands had seen so far this century. Two weeks later, a single snow front triggered traffic jams totalling 750km nationwide. Northern Europe's December 2010 became one of its coldest and snowiest in decades, paralysing Schiphol and rail travel for days.",
+      headline_nl: "De koudste \"ijsdag\" van de eeuw — en de sneeuwchaos die volgde",
+      desc_nl: "In De Bilt kwam de temperatuur deze dag niet boven -6,1°C uit, de koudste volledige ijsdag die Nederland deze eeuw tot dan toe had gekend. Twee weken later zorgde één sneeuwfront voor in totaal 750 kilometer file door het hele land. December 2010 werd in Noordwest-Europa een van de koudste en sneeuwrijkste decembers in decennia, met dagenlange ontwrichting op Schiphol en het spoor.",
       source: { name: "KNMI", url: "https://www.knmi.nl/nederland-nu/klimatologie/maand-en-seizoensoverzichten/2010/december" }
     },
     {
       date: "2018-02-28", type: "cold",
       headline: "The \"Beast from the East\" reaches the Netherlands",
-      desc: "An Arctic outbreak from Siberia — nicknamed the Beast from the East — pushed deep cold and heavy snow across Western Europe from late February into early March. The Netherlands saw roughly double its normal number of frost days; across the continent, the cold snap, worsened by Storm Emma, caused an estimated 60 deaths.",
+      desc: "An Arctic outbreak from Siberia — nicknamed the Beast from the East — pushed deep cold and heavy snow across Western Europe from late February into early March, worsened by Storm Emma moving in from the Atlantic. The Netherlands saw roughly double its normal number of frost days that spell, one of only two months in 2018 with a below-average temperature.",
+      headline_nl: "Het \"Beest uit het Oosten\" bereikt Nederland",
+      desc_nl: "Een uitbraak van Arctische lucht vanuit Siberië — bijgenaamd het \"Beest uit het Oosten\" — bracht eind februari tot begin maart strenge kou en veel sneeuw naar West-Europa, verergerd door storm Emma die vanaf de Atlantische Oceaan naar binnen trok. Nederland kende in die periode ruwweg twee keer zoveel vorstdagen als normaal — een van de slechts twee maanden in 2018 met een benedennormale temperatuur.",
       source: { name: "Copernicus Climate Change Service", url: "https://climate.copernicus.eu/cold-start-year" }
     },
     {
       date: "2005-03-04", type: "cold",
       headline: "A 40-degree swing: record snow, then a national cold record",
       desc: "Days earlier, 20–50cm of snow blanketed northern parts of the country — a depth over that wide an area seen roughly once every 50 years. On March 4th, Marknesse recorded a national low of -20.7°C. Within two weeks the temperature would swing by more than 40°C, a shift never before observed in the Netherlands since measurements began in 1901.",
+      headline_nl: "Een omslag van 40 graden: eerst recordsneeuw, dan een landelijk kouderecord",
+      desc_nl: "Enkele dagen eerder viel er 20 tot 50 cm sneeuw in het noorden van het land — een sneeuwdek over zo'n groot gebied dat maar eens in de zo'n 50 jaar voorkomt. Op 4 maart mat Marknesse een landelijk minimum van -20,7°C. Binnen twee weken zou de temperatuur meer dan 40 graden verschuiven, een schommeling die sinds het begin van de metingen in 1901 niet eerder in Nederland was waargenomen.",
       source: { name: "KNMI", url: "https://www.knmi.nl/over-het-knmi/nieuws/recordkou-en-veel-sneeuw" }
     },
     {
       date: "1996-01-25", type: "cold",
       headline: "Deep freeze in the Netherlands' 8th-coldest winter of the 20th century",
       desc: "This day fell inside the prolonged freeze of winter 1995–96, which stretched into more than 100 frost days at De Bilt. Weeks later, Twenthe would measure -21.0°C — the lowest temperature recorded anywhere in the Netherlands in a decade. Only the historic winters of 1963 and 1947 were colder in the past hundred years.",
+      headline_nl: "Diepvries tijdens de op-zeven-na koudste winter van de 20e eeuw",
+      desc_nl: "Deze dag viel middenin de langdurige vorstperiode van winter 1995–96, die uiteindelijk meer dan 100 vorstdagen in De Bilt opleverde. Weken later zou Twenthe -21,0°C meten — de laagste temperatuur die in tien jaar tijd ergens in Nederland was gemeten. Alleen de historische winters van 1963 en 1947 waren in de afgelopen honderd jaar nog kouder.",
       source: { name: "Meteolink", url: "https://www.meteolink.nl/de-vergeten-winter-van-1996/" }
     }
   ];
+
+  function evText(ev) {
+    return LANG === 'nl'
+      ? { headline: ev.headline_nl || ev.headline, desc: ev.desc_nl || ev.desc }
+      : { headline: ev.headline, desc: ev.desc };
+  }
 
   var EVENTS_BY_DATE = {};
   EVENTS.forEach(function (e) { EVENTS_BY_DATE[e.date] = e; });
@@ -470,10 +515,10 @@
     var coldest = DAILY.reduce(function (a, b) { return b.tn < a.tn ? b : a; });
     var trend = computeTrend(), slope = trend.slope, trendTotal = trend.trendTotal;
     var stats = [
-      { label: "Hottest day recorded", value: hottest.tx.toFixed(1) + "°C", sub: fmtDate(hottest.d), cls: "up" },
-      { label: "Coldest day recorded", value: coldest.tn.toFixed(1) + "°C", sub: fmtDate(coldest.d), cls: "down" },
-      { label: "Warming trend, 1996–2025", value: sign(trendTotal) + trendTotal.toFixed(1) + "°C", sub: "linear trend in annual avg. temp, " + sign(slope*10) + (slope*10).toFixed(2) + "°C/decade", cls: trendTotal >= 0 ? "up" : "down" },
-      { label: "Days analyzed", value: DAILY.length.toLocaleString(), sub: "30 years · 262,992 hourly readings", cls: "" }
+      { label: t("Hottest day recorded", "Warmste dag gemeten"), value: hottest.tx.toFixed(1) + "°C", sub: fmtDate(hottest.d), cls: "up" },
+      { label: t("Coldest day recorded", "Koudste dag gemeten"), value: coldest.tn.toFixed(1) + "°C", sub: fmtDate(coldest.d), cls: "down" },
+      { label: t("Warming trend, 1996–2025", "Opwarmingstrend, 1996–2025"), value: sign(trendTotal) + trendTotal.toFixed(1) + "°C", sub: t("linear trend in annual avg. temp, ", "lineaire trend in jaargemiddelde temp., ") + sign(slope*10) + (slope*10).toFixed(2) + t("°C/decade", "°C/decennium"), cls: trendTotal >= 0 ? "up" : "down" },
+      { label: t("Days analyzed", "Dagen geanalyseerd"), value: DAILY.length.toLocaleString(), sub: t("30 years · 262,992 hourly readings", "30 jaar · 262.992 uurmetingen"), cls: "" }
     ];
     var row = document.getElementById('statRow');
     row.innerHTML = "";
@@ -508,10 +553,14 @@
 
     var recentEventCount = EVENTS.filter(function (e) { return +e.date.slice(0, 4) >= recentCutoff; }).length;
 
-    el.innerHTML =
-      'Amsterdam has warmed by roughly <b>' + sign(perDecade) + perDecade.toFixed(2) + '°C per decade</b> since 1996 — about <b>' + sign(trend.trendTotal) + trend.trendTotal.toFixed(1) + '°C</b> in annual average temperature over the full 30 years. ' +
+    el.innerHTML = LANG === 'nl' ?
+      ('Amsterdam is sinds 1996 ongeveer <b>' + sign(perDecade) + perDecade.toFixed(2) + '°C per decennium</b> opgewarmd — zo\'n <b>' + sign(trend.trendTotal) + trend.trendTotal.toFixed(1) + '°C</b> aan jaargemiddelde temperatuur over de volle 30 jaar. ' +
+      'De warmste dag ooit gemeten is <b class="hot">' + fmtDate(hottest.d) + '</b>, met <b class="hot">' + hottest.tx.toFixed(1) + '°C</b>; de koudste is <b class="cold">' + fmtDate(coldest.d) + '</b>, met <b class="cold">' + coldest.tn.toFixed(1) + '°C</b>. ' +
+      'Extreme hitte concentreert zich ook steeds meer in de recente jaren: <b>' + recentWarmCount + ' van de 20 warmste dag-anomalieën</b> in deze hele reeks vielen in het laatste decennium (' + recentCutoff + '–' + lastYear + '), en <b>' + recentEventCount + ' van de 12 uitgelichte weersgebeurtenissen</b> hieronder vonden plaats sinds ' + recentCutoff + '.')
+      :
+      ('Amsterdam has warmed by roughly <b>' + sign(perDecade) + perDecade.toFixed(2) + '°C per decade</b> since 1996 — about <b>' + sign(trend.trendTotal) + trend.trendTotal.toFixed(1) + '°C</b> in annual average temperature over the full 30 years. ' +
       'The single hottest day on record is <b class="hot">' + fmtDate(hottest.d) + '</b>, which reached <b class="hot">' + hottest.tx.toFixed(1) + '°C</b>; the coldest is <b class="cold">' + fmtDate(coldest.d) + '</b>, which fell to <b class="cold">' + coldest.tn.toFixed(1) + '°C</b>. ' +
-      'Extreme heat is also increasingly front-loaded into recent years: <b>' + recentWarmCount + ' of the 20 warmest single-day anomalies</b> in this entire record happened in just the last decade (' + recentCutoff + '–' + lastYear + '), and <b>' + recentEventCount + ' of the 12 headline weather events</b> profiled below occurred since ' + recentCutoff + '.';
+      'Extreme heat is also increasingly front-loaded into recent years: <b>' + recentWarmCount + ' of the 20 warmest single-day anomalies</b> in this entire record happened in just the last decade (' + recentCutoff + '–' + lastYear + '), and <b>' + recentEventCount + ' of the 12 headline weather events</b> profiled below occurred since ' + recentCutoff + '.');
   }
 
   /* ================= MAIN ANOMALY CHART ================= */
@@ -553,7 +602,7 @@
     if (isFull) { hint.textContent = ""; return; }
     var lo = Math.max(0, Math.min(DAILY.length - 1, Math.floor(mainView.i0)));
     var hi = Math.max(0, Math.min(DAILY.length - 1, Math.ceil(mainView.i1) - 1));
-    hint.textContent = "Zoomed: " + fmtDateShort(DAILY[lo].d) + " – " + fmtDate(DAILY[hi].d);
+    hint.textContent = t("Zoomed: ", "Ingezoomd: ") + fmtDateShort(DAILY[lo].d) + " – " + fmtDate(DAILY[hi].d);
   }
 
   function mainTicks(idxLo, idxHi, span) {
@@ -567,7 +616,7 @@
       seen = {};
       for (i = idxLo; i <= idxHi; i++) {
         var ym = DAILY[i].d.slice(0, 7);
-        if (!(ym in seen)) { seen[ym] = i; ticks.push({ idx: i, label: MONTHS[+DAILY[i].d.slice(5, 7) - 1] + " '" + DAILY[i].d.slice(2, 4) }); }
+        if (!(ym in seen)) { seen[ym] = i; ticks.push({ idx: i, label: MONTHS[LANG][+DAILY[i].d.slice(5, 7) - 1] + " '" + DAILY[i].d.slice(2, 4) }); }
       }
       step = Math.max(1, Math.ceil(ticks.length / 10));
       ticks = ticks.filter(function (t, ti) { return ti % step === 0; });
@@ -726,12 +775,12 @@
       var html;
       if (hitMarker) {
         var ev = EVENTS_BY_DATE[hitMarker.date];
-        html = '<div class="tt-row"><b>' + fmtDate(ev.date) + '</b></div><div>' + ev.headline + '</div><div style="color:var(--text-muted);margin-top:4px;">Tap to jump to the story</div>';
+        html = '<div class="tt-row"><b>' + fmtDate(ev.date) + '</b></div><div>' + evText(ev).headline + '</div><div style="color:var(--text-muted);margin-top:4px;">' + t("Tap to jump to the story", "Tik voor het verhaal") + '</div>';
       } else {
         var label = bin.start === bin.end ? fmtDate(bin.start) : (fmtDateShort(bin.start) + " – " + fmtDate(bin.end));
         html = '<div class="tt-row"><span>' + label + '</span><span class="tt-val">' + bin.tmAvg.toFixed(1) + '°C</span></div>' +
-          '<div class="tt-row"><span>vs. normal</span><span class="tt-val" style="color:' + (bin.avg >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(bin.avg) + bin.avg.toFixed(1) + '°C</span></div>' +
-          '<div style="color:var(--text-muted);margin-top:4px;">Drag to zoom in on a range</div>';
+          '<div class="tt-row"><span>' + t("vs. normal", "t.o.v. normaal") + '</span><span class="tt-val" style="color:' + (bin.avg >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(bin.avg) + bin.avg.toFixed(1) + '°C</span></div>' +
+          '<div style="color:var(--text-muted);margin-top:4px;">' + t("Drag to zoom in on a range", "Sleep om in te zoomen op een periode") + '</div>';
       }
       tooltip.innerHTML = html;
       tooltip.style.left = x + "px";
@@ -853,12 +902,12 @@
     var hint = document.getElementById('calZoomHint');
     var isFull = Math.abs(calView.x0 - CAL_FULL_VIEW.x0) < 0.01 && Math.abs(calView.x1 - CAL_FULL_VIEW.x1) < 0.01 &&
       Math.abs(calView.y0 - CAL_FULL_VIEW.y0) < 0.01 && Math.abs(calView.y1 - CAL_FULL_VIEW.y1) < 0.01;
-    if (isFull) { hint.textContent = "Showing all 30 years"; return; }
+    if (isFull) { hint.textContent = t("Showing all 30 years", "Alle 30 jaar zichtbaar"); return; }
     var y0 = CAL_YEARS[Math.max(0, Math.min(CAL_YEARS.length - 1, Math.floor(calView.y0)))];
     var y1 = CAL_YEARS[Math.max(0, Math.min(CAL_YEARS.length - 1, Math.ceil(calView.y1) - 1))];
-    var m0 = MONTHS[Math.max(0, Math.min(11, Math.floor((calView.x0 - 1) / 30.5)))];
-    var m1 = MONTHS[Math.max(0, Math.min(11, Math.floor((calView.x1 - 2) / 30.5)))];
-    hint.textContent = "Showing " + m0 + "–" + m1 + ", " + y0 + (y1 !== y0 ? "–" + y1 : "");
+    var m0 = MONTHS[LANG][Math.max(0, Math.min(11, Math.floor((calView.x0 - 1) / 30.5)))];
+    var m1 = MONTHS[LANG][Math.max(0, Math.min(11, Math.floor((calView.x1 - 2) / 30.5)))];
+    hint.textContent = t("Showing ", "Weergegeven: ") + m0 + "–" + m1 + ", " + y0 + (y1 !== y0 ? "–" + y1 : "");
   }
 
   function renderCalendar() {
@@ -922,7 +971,7 @@
       if (ds < calView.x0 - 31 || ds > calView.x1 + 1) return;
       var x = padLeft + (ds - calView.x0) * cellW;
       if (x < padLeft - 20 || x > W - padRight) return;
-      ctx.fillText(MONTHS[mi], Math.max(padLeft + 2, x + 2), H - 4);
+      ctx.fillText(MONTHS[LANG][mi], Math.max(padLeft + 2, x + 2), H - 4);
     });
 
     calCellGeom = { padLeft: padLeft, padTop: padTop, plotW: plotW, plotH: plotH, cellW: cellW, cellH: cellH, years: years };
@@ -951,11 +1000,11 @@
     var el = document.getElementById('calLegend');
     var C = colors();
     var stops = [-12, -6, 0, 6, 12];
-    var html = '<span class="legend-item">Colder</span>';
+    var html = '<span class="legend-item">' + t("Colder", "Kouder") + '</span>';
     stops.forEach(function (s) {
       html += '<span class="swatch" style="background:' + divergingColor(s, C.divergeMid, C.blue, C.red, 12) + '"></span>';
     });
-    html += '<span class="legend-item">Warmer</span>';
+    html += '<span class="legend-item">' + t("Warmer", "Warmer") + '</span>';
     el.innerHTML = html;
   }
 
@@ -1010,9 +1059,9 @@
       if (!rec) { tooltip.style.opacity = 0; return; }
       var isStory = EVENTS_BY_DATE[rec.d] ? true : false;
       tooltip.innerHTML = '<div class="tt-row"><b>' + fmtDate(rec.d) + '</b></div>' +
-        '<div class="tt-row"><span>Avg temp</span><span class="tt-val">' + rec.tm.toFixed(1) + '°C</span></div>' +
-        '<div class="tt-row"><span>vs. normal</span><span class="tt-val" style="color:' + (rec.am >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(rec.am) + rec.am.toFixed(1) + '°C</span></div>' +
-        (isStory ? '<div style="color:var(--orange);margin-top:4px;">Tap for the story</div>' : '<div style="color:var(--text-muted);margin-top:4px;">Drag to zoom in</div>');
+        '<div class="tt-row"><span>' + t("Avg temp", "Gem. temp") + '</span><span class="tt-val">' + rec.tm.toFixed(1) + '°C</span></div>' +
+        '<div class="tt-row"><span>' + t("vs. normal", "t.o.v. normaal") + '</span><span class="tt-val" style="color:' + (rec.am >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(rec.am) + rec.am.toFixed(1) + '°C</span></div>' +
+        (isStory ? '<div style="color:var(--orange);margin-top:4px;">' + t("Tap for the story", "Tik voor het verhaal") + '</div>' : '<div style="color:var(--text-muted);margin-top:4px;">' + t("Drag to zoom in", "Sleep om in te zoomen") + '</div>');
       tooltip.style.left = x + "px";
       tooltip.style.top = "0px";
       tooltip.style.opacity = 1;
@@ -1108,7 +1157,7 @@
         '<td class="num">' + d.cm.toFixed(1) + '°C</td>' +
         '<td class="num"><span class="badge ' + (d.am >= 0 ? 'heat' : 'cold') + '">' + sign(d.am) + d.am.toFixed(1) + '°C</span></td>' +
         '<td class="num">' + d.tx.toFixed(1) + '° / ' + d.tn.toFixed(1) + '°</td>' +
-        '<td>' + (isStory ? '<span class="story-flag">● story</span>' : '') + '</td>';
+        '<td>' + (isStory ? '<span class="story-flag">● ' + t("story", "verhaal") + '</span>' : '') + '</td>';
       tr.addEventListener('click', function () {
         if (isStory) jumpToEvent(d.d);
         else {
@@ -1144,21 +1193,22 @@
       card.id = 'event-' + ev.date;
       var metrics = rec ? (
         '<div class="event-metrics">' +
-        '<span>Day avg <b>' + rec.tm.toFixed(1) + '°C</b></span>' +
-        '<span>Normal <b>' + rec.cm.toFixed(1) + '°C</b></span>' +
-        '<span>Anomaly <b style="color:' + (rec.am >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(rec.am) + rec.am.toFixed(1) + '°C</b></span>' +
-        '<span>Max/Min <b>' + rec.tx.toFixed(1) + '° / ' + rec.tn.toFixed(1) + '°</b></span>' +
+        '<span>' + t("Day avg", "Dag gem.") + ' <b>' + rec.tm.toFixed(1) + '°C</b></span>' +
+        '<span>' + t("Normal", "Normaal") + ' <b>' + rec.cm.toFixed(1) + '°C</b></span>' +
+        '<span>' + t("Anomaly", "Afwijking") + ' <b style="color:' + (rec.am >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(rec.am) + rec.am.toFixed(1) + '°C</b></span>' +
+        '<span>' + t("Max/Min", "Max/min") + ' <b>' + rec.tx.toFixed(1) + '° / ' + rec.tn.toFixed(1) + '°</b></span>' +
         '</div>') : '';
       card.innerHTML =
-        '<div class="event-head"><span class="badge ' + (ev.type === 'heat' ? 'heat' : 'cold') + '">' + (ev.type === 'heat' ? 'Heat' : 'Cold') + '</span><span class="event-date"></span></div>' +
+        '<div class="event-head"><span class="badge ' + (ev.type === 'heat' ? 'heat' : 'cold') + '">' + (ev.type === 'heat' ? t("Heat", "Hitte") : t("Cold", "Kou")) + '</span><span class="event-date"></span></div>' +
         '<div class="event-title"></div>' +
         metrics +
         '<div class="spark-wrap"><canvas class="spark" id="spark-' + ev.date + '"></canvas><div class="tooltip" id="spark-tt-' + ev.date + '"></div></div>' +
         '<div class="event-desc"></div>' +
-        '<div class="event-source">Source: <a target="_blank" rel="noopener"></a></div>';
+        '<div class="event-source">' + t("Source:", "Bron:") + ' <a target="_blank" rel="noopener"></a></div>';
+      var evt = evText(ev);
       card.querySelector('.event-date').textContent = fmtDate(ev.date);
-      card.querySelector('.event-title').textContent = ev.headline;
-      card.querySelector('.event-desc').textContent = ev.desc;
+      card.querySelector('.event-title').textContent = evt.headline;
+      card.querySelector('.event-desc').textContent = evt.desc;
       var a = card.querySelector('.event-source a');
       a.href = ev.source.url; a.textContent = ev.source.name;
       grid.appendChild(card);
@@ -1281,12 +1331,80 @@
     pinnedDate = date;
   }
 
+  /* ================= LANGUAGE (EN / NL) ================= */
+  function applyStaticTranslations() {
+    function setT(id, en, nl) { var el = document.getElementById(id); if (el) el.textContent = LANG === 'nl' ? nl : en; }
+    function setHtml(id, en, nl) { var el = document.getElementById(id); if (el) el.innerHTML = LANG === 'nl' ? nl : en; }
+
+    setT('headerTitle', "Amsterdam Temperature Anomalies, 1996–2025", "Amsterdam Temperatuurafwijkingen, 1996–2025");
+    setT('headerSub',
+      "Hourly KNMI station readings for Amsterdam Schiphol (station 240), aggregated to daily averages and compared against a 30‑year day‑of‑year normal. This dashboard surfaces the days that broke furthest from that normal — and the real weather events behind the biggest swings.",
+      "Uurlijkse KNMI-metingen van station Amsterdam Schiphol (station 240), samengevoegd tot dagelijkse gemiddelden en vergeleken met een 30-jarig gemiddelde per kalenderdag. Dit dashboard laat zien welke dagen het verst van dat gemiddelde afweken — en welke echte weersgebeurtenissen daarachter zaten.");
+    setT('summaryLabel', "Key findings", "Belangrijkste bevindingen");
+    setT('mainChartTitle', "Daily temperature anomaly vs. normal", "Dagelijkse temperatuurafwijking t.o.v. normaal");
+    setT('mainChartSub',
+      "Each bar is one day's average temperature, minus the typical temperature for that calendar day (based on a ±7‑day window across all 30 years). Markers mark the 12 events profiled below. Click and drag across a period to zoom in; double‑click (or the button) to zoom back out.",
+      "Elke balk is de gemiddelde temperatuur van één dag, min de typische temperatuur voor die kalenderdag (op basis van een venster van ±7 dagen over alle 30 jaar). De markeringen geven de 12 hieronder uitgelichte gebeurtenissen aan. Klik en sleep over een periode om in te zoomen; dubbelklik (of de knop) om weer uit te zoomen.");
+    setT('rangeLabel', "Range:", "Periode:");
+    setT('last5Btn', "Last 5 years", "Laatste 5 jaar");
+    var resetBtns = document.querySelectorAll('#mainResetZoom, #calResetZoom');
+    for (var ri = 0; ri < resetBtns.length; ri++) resetBtns[ri].textContent = t("Reset zoom", "Zoom resetten");
+    setT('legendWarmer', "Warmer than normal", "Warmer dan normaal");
+    setT('legendColder', "Colder than normal", "Kouder dan normaal");
+    setT('legendEvent', "Profiled event", "Uitgelichte gebeurtenis");
+    setT('calChartTitle', "Every day, 1996–2025", "Elke dag, 1996–2025");
+    setT('calChartSub',
+      "Each row is a year, each column a day of the year. Color shows how far that day's average temperature sat from normal — deep red for exceptional warmth, deep blue for exceptional cold. Click and drag a box over any region to zoom in; double‑click (or the button) to zoom back out.",
+      "Elke rij is een jaar, elke kolom een dag van het jaar. De kleur laat zien hoe ver de gemiddelde temperatuur van die dag van normaal afweek — dieprood voor uitzonderlijke warmte, diepblauw voor uitzonderlijke kou. Klik en sleep een rechthoek over een gebied om in te zoomen; dubbelklik (of de knop) om weer uit te zoomen.");
+    setT('rankTitle', "Biggest anomalies, ranked", "Grootste afwijkingen, gerangschikt");
+    setHtml('rankSub',
+      'The days furthest from normal in the selected range. Rows marked <span class="story-flag">● story</span> are profiled below — click any row to jump to it or highlight it on the chart.',
+      'De dagen die het verst van normaal afweken in de gekozen periode. Rijen met <span class="story-flag">● verhaal</span> worden hieronder uitgelicht — klik op een rij om ernaartoe te springen of hem op de grafiek te markeren.');
+    var tabWarm = document.querySelector('[data-tab="warm"]'), tabCold = document.querySelector('[data-tab="cold"]');
+    if (tabWarm) tabWarm.textContent = t("Warmest anomalies", "Warmste afwijkingen");
+    if (tabCold) tabCold.textContent = t("Coldest anomalies", "Koudste afwijkingen");
+    setT('thDate', "Date", "Datum");
+    setT('thAvg', "Avg temp", "Gem. temp");
+    setT('thNormal', "Normal", "Normaal");
+    setT('thAnomaly', "Anomaly", "Afwijking");
+    setT('thMaxMin', "Day max / min", "Dagmax / -min");
+    setT('eventsTitle', "The events behind the anomalies", "De gebeurtenissen achter de afwijkingen");
+    setT('eventsSub',
+      "Twelve of the most extreme days in this record, matched with the news coverage of the weather event that caused them. Each mini‑chart shows hourly temperature for the surrounding nine days.",
+      "Twaalf van de meest extreme dagen uit deze reeks, gekoppeld aan de nieuwsberichten over de weersgebeurtenis die ze veroorzaakte. Elke mini-grafiek toont de uurlijkse temperatuur over de omliggende negen dagen.");
+    setT('pageFooter',
+      'Data: hourly temperature observations, Amsterdam Schiphol (KNMI station 240), Jan 1996 – Dec 2025, 262,992 hourly readings aggregated to 10,958 days. "Normal" = mean of that calendar day ± 7 days across all 30 years. Event descriptions summarize public reporting cited on each card; figures there refer to national/regional records (De Bilt, Gilze‑Rijen, etc.), which may differ slightly from this Schiphol station\'s own reading on the same day.',
+      'Data: uurlijkse temperatuurmetingen, Amsterdam Schiphol (KNMI-station 240), jan 1996 – dec 2025, 262.992 uurmetingen samengevoegd tot 10.958 dagen. "Normaal" = gemiddelde van die kalenderdag ± 7 dagen over alle 30 jaar. De gebeurtenisbeschrijvingen vatten openbare berichtgeving samen die bij elke kaart staat vermeld; de genoemde cijfers verwijzen naar nationale/regionale records (De Bilt, Gilze-Rijen, etc.), die licht kunnen afwijken van de eigen meting van dit Schiphol-station op diezelfde dag.');
+
+    var enBtn = document.getElementById('langEn'), nlBtn = document.getElementById('langNl');
+    if (enBtn) enBtn.classList.toggle('active', LANG === 'en');
+    if (nlBtn) nlBtn.classList.toggle('active', LANG === 'nl');
+  }
+
+  function setLanguage(lang) {
+    LANG = lang;
+    localStorage.setItem('dashLang', lang);
+    applyStaticTranslations();
+    renderStats();
+    renderSummary();
+    renderMainChart();
+    renderCalLegend();
+    renderCalendar();
+    renderRankTable();
+    renderEventCards();
+  }
+
+  var langEnBtn = document.getElementById('langEn'), langNlBtn = document.getElementById('langNl');
+  if (langEnBtn) langEnBtn.addEventListener('click', function () { setLanguage('en'); });
+  if (langNlBtn) langNlBtn.addEventListener('click', function () { setLanguage('nl'); });
+
   /* ================= INIT ================= */
   function renderAll() {
     renderMainChart();
     renderCalendar();
   }
   buildCalLookup();
+  applyStaticTranslations();
   renderStats();
   renderSummary();
   renderMainChart();
