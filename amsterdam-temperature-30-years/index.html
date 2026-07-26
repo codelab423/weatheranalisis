@@ -67,7 +67,9 @@
   }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
 
-  .lang-row { display:flex; justify-content:flex-end; gap:6px; margin: 4px 0 10px; }
+  .lang-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin: 4px 0 10px; flex-wrap: wrap; }
+  .lang-toggle-group { display:flex; gap:6px; }
+  .share-btn { display:flex; align-items:center; gap:6px; }
   header.page-head { margin-bottom: 22px; }
   header.page-head h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
   header.page-head p { margin: 0; color: var(--text-secondary); font-size: 14.5px; max-width: 720px; line-height: 1.5; }
@@ -219,8 +221,11 @@
 <div class="wrap">
 
   <div class="lang-row">
-    <button class="chip" id="langEn">English</button>
-    <button class="chip" id="langNl">Nederlands</button>
+    <button class="chip share-btn" id="shareBtn">🔗 <span id="shareBtnLabel">Share this page</span></button>
+    <div class="lang-toggle-group">
+      <button class="chip" id="langEn">English</button>
+      <button class="chip" id="langNl">Nederlands</button>
+    </div>
   </div>
 
   <header class="page-head">
@@ -641,12 +646,16 @@
     hint.textContent = t("Zoomed: ", "Ingezoomd: ") + fmtDateShort(DAILY[lo].d) + " – " + fmtDate(DAILY[hi].d);
   }
 
-  function mainTicks(idxLo, idxHi, span) {
+  function mainTicks(idxLo, idxHi, span, plotW) {
+    // Space labels by how much pixel width is actually available, not a fixed
+    // count — a fixed "show up to 12" works on a wide desktop chart but
+    // overlaps and truncates ("996", "999", "002"...) on a narrow phone.
     var ticks = [], seen, step, i;
+    function fitCount(minLabelPx) { return Math.max(1, Math.floor((plotW || 1100) / minLabelPx)); }
     if (span > 720) {
       seen = {};
       for (i = idxLo; i <= idxHi; i++) { var y = DAILY[i].year; if (!(y in seen)) { seen[y] = i; ticks.push({ idx: i, label: String(y) }); } }
-      step = Math.max(1, Math.ceil(ticks.length / 12));
+      step = Math.max(1, Math.ceil(ticks.length / fitCount(46)));
       ticks = ticks.filter(function (t, ti) { return ti % step === 0; });
     } else if (span > 60) {
       seen = {};
@@ -654,11 +663,11 @@
         var ym = DAILY[i].d.slice(0, 7);
         if (!(ym in seen)) { seen[ym] = i; ticks.push({ idx: i, label: MONTHS_FULL[LANG][+DAILY[i].d.slice(5, 7) - 1] + " " + DAILY[i].d.slice(0, 4) }); }
       }
-      step = Math.max(1, Math.ceil(ticks.length / 6));
+      step = Math.max(1, Math.ceil(ticks.length / fitCount(110)));
       ticks = ticks.filter(function (t, ti) { return ti % step === 0; });
     } else {
       var n = idxHi - idxLo + 1;
-      step = Math.max(1, Math.round(n / 5));
+      step = Math.max(1, Math.ceil(n / fitCount(110)));
       for (i = idxLo; i <= idxHi; i += step) {
         var p = DAILY[i].d.split("-"); var yy = +p[0], mm = +p[1], dd = +p[2];
         var monFull = MONTHS_FULL[LANG][mm - 1];
@@ -719,13 +728,26 @@
     }
     ctx.globalAlpha = 1;
 
-    // tick labels (year / month / day, depending on zoom)
+    // tick labels (year / month / day, depending on zoom). The first/last
+    // tick is anchored left/right instead of centered, so it can't be
+    // clipped by running off the edge of the canvas. mainTicks() only gives
+    // an estimate-based spacing, so also skip any label here that would
+    // still overlap the previous one (measured, not guessed) — belt and
+    // braces against the "996 999 002" pile-up on narrow screens.
     ctx.fillStyle = C.textMuted;
     ctx.font = "11px system-ui, -apple-system, sans-serif";
-    ctx.textAlign = "center";
-    mainTicks(idxLo, idxHi, span).forEach(function (t) {
+    var allTicks = mainTicks(idxLo, idxHi, span, plotW);
+    var lastTickRight = -Infinity;
+    var tickGapPx = 8;
+    allTicks.forEach(function (t, ti) {
       var x = padLeft + ((t.idx - i0) / span) * plotW;
+      var align = ti === 0 ? "left" : (ti === allTicks.length - 1 ? "right" : "center");
+      var textW = ctx.measureText(t.label).width;
+      var labelLeft = align === "left" ? x : (align === "right" ? x - textW : x - textW / 2);
+      if (labelLeft < lastTickRight + tickGapPx) return;
+      ctx.textAlign = align;
       ctx.fillText(t.label, x, H - 4);
+      lastTickRight = labelLeft + textW;
     });
 
     // event markers
@@ -1007,15 +1029,24 @@
       ctx.fillText(String(years[yl]), padLeft - 6, rowY2 + Math.min(cellH * 0.75, cellH));
     }
 
-    // month ticks (approx, non-leap boundaries) — full month name, not abbreviated
+    // month ticks (approx, non-leap boundaries) — full month name, not abbreviated.
+    // Skip a label if it would overlap the previous one instead of always
+    // drawing all 12: on a narrow (phone-width) chart, 12 full month names
+    // packed edge-to-edge collide into unreadable mush.
     var monthStarts = [1,32,60,91,121,152,182,213,244,274,305,335];
     ctx.fillStyle = C.textMuted;
     ctx.textAlign = "left";
+    var lastLabelRight = -Infinity;
+    var minGapPx = 6;
     monthStarts.forEach(function (ds, mi) {
       if (ds < calView.x0 - 31 || ds > calView.x1 + 1) return;
       var x = padLeft + (ds - calView.x0) * cellW;
       if (x < padLeft - 20 || x > W - padRight) return;
-      ctx.fillText(MONTHS_FULL[LANG][mi], Math.max(padLeft + 2, x + 2), H - 4);
+      var labelX = Math.max(padLeft + 2, x + 2);
+      if (labelX < lastLabelRight + minGapPx) return;
+      var text = MONTHS_FULL[LANG][mi];
+      ctx.fillText(text, labelX, H - 4);
+      lastLabelRight = labelX + ctx.measureText(text).width;
     });
 
     calCellGeom = { padLeft: padLeft, padTop: padTop, plotW: plotW, plotH: plotH, cellW: cellW, cellH: cellH, years: years };
@@ -1384,6 +1415,7 @@
     setT('headerSub',
       "Hourly KNMI station readings for Amsterdam Schiphol (station 240), aggregated to daily averages and compared against a 30‑year day‑of‑year normal. This dashboard surfaces the days that broke furthest from that normal — and the real weather events behind the biggest swings.",
       "Uurlijkse KNMI-metingen van station Amsterdam Schiphol (station 240), samengevoegd tot dagelijkse gemiddelden en vergeleken met een 30-jarig gemiddelde per kalenderdag. Dit dashboard laat zien welke dagen het verst van dat gemiddelde afweken — en welke echte weersgebeurtenissen daarachter zaten.");
+    setT('shareBtnLabel', "Share this page", "Deel deze pagina");
     setT('summaryLabel', "Key findings", "Belangrijkste bevindingen");
     setT('mainChartTitle', "Daily temperature anomaly vs. normal", "Dagelijkse temperatuurafwijking t.o.v. normaal");
     setT('mainChartSub',
@@ -1449,6 +1481,35 @@
   var langEnBtn = document.getElementById('langEn'), langNlBtn = document.getElementById('langNl');
   if (langEnBtn) langEnBtn.addEventListener('click', function () { setLanguage('en'); });
   if (langNlBtn) langNlBtn.addEventListener('click', function () { setLanguage('nl'); });
+
+  (function setupShareButton() {
+    var btn = document.getElementById('shareBtn'), label = document.getElementById('shareBtnLabel');
+    if (!btn || !label) return;
+    var defaultText = function () { return t("Share this page", "Deel deze pagina"); };
+    var revertTimer;
+    function flashLabel(text) {
+      clearTimeout(revertTimer);
+      label.textContent = text;
+      revertTimer = setTimeout(function () { label.textContent = defaultText(); }, 1800);
+    }
+    btn.addEventListener('click', function () {
+      var url = window.location.href;
+      var title = document.title;
+      if (navigator.share) {
+        navigator.share({ title: title, url: url }).catch(function () { /* user cancelled — no error needed */ });
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () {
+          flashLabel(t("Link copied!", "Link gekopieerd!"));
+        }).catch(function () {
+          flashLabel(t("Couldn't copy — copy from the address bar", "Kopiëren mislukt — kopieer via de adresbalk"));
+        });
+      } else {
+        flashLabel(t("Copy the link from the address bar", "Kopieer de link via de adresbalk"));
+      }
+    });
+  })();
 
   function setupZoomHelpToggle(btnId, panelId) {
     var btn = document.getElementById(btnId), panel = document.getElementById(panelId);
