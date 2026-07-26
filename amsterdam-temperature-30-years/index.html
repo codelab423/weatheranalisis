@@ -990,20 +990,24 @@
     }
     ctx.restore();
 
-    // year labels
+    // year labels — space these by how much room each row actually has, so
+    // every visible year gets its own label as soon as there's room for one,
+    // instead of a fixed "every 5th year" that leaves most rows unlabeled
+    // once zoomed into a tall (many-year) selection.
     ctx.font = "10.5px system-ui, -apple-system, sans-serif";
     ctx.textAlign = "right";
-    var yearLabelEvery = spanY > 15 ? 5 : (spanY > 4 ? 1 : 1);
+    var minLabelPx = 13;
+    var yearLabelEvery = Math.max(1, Math.ceil(minLabelPx / cellH));
     for (var yl = yiStart; yl <= yiEnd; yl++) {
       if (yl < 0 || yl >= years.length) continue;
-      if (yl % yearLabelEvery !== 0 && yl !== years.length - 1 && spanY > 15) continue;
+      if (yl % yearLabelEvery !== 0 && yl !== years.length - 1 && yearLabelEvery > 1) continue;
       var rowY2 = padTop + (yl - calView.y0) * cellH;
       if (rowY2 < padTop - cellH || rowY2 > H - padBottom) continue;
       ctx.fillStyle = C.textMuted;
       ctx.fillText(String(years[yl]), padLeft - 6, rowY2 + Math.min(cellH * 0.75, cellH));
     }
 
-    // month ticks (approx, non-leap boundaries)
+    // month ticks (approx, non-leap boundaries) — full month name, not abbreviated
     var monthStarts = [1,32,60,91,121,152,182,213,244,274,305,335];
     ctx.fillStyle = C.textMuted;
     ctx.textAlign = "left";
@@ -1011,7 +1015,7 @@
       if (ds < calView.x0 - 31 || ds > calView.x1 + 1) return;
       var x = padLeft + (ds - calView.x0) * cellW;
       if (x < padLeft - 20 || x > W - padRight) return;
-      ctx.fillText(MONTHS[LANG][mi], Math.max(padLeft + 2, x + 2), H - 4);
+      ctx.fillText(MONTHS_FULL[LANG][mi], Math.max(padLeft + 2, x + 2), H - 4);
     });
 
     calCellGeom = { padLeft: padLeft, padTop: padTop, plotW: plotW, plotH: plotH, cellW: cellW, cellH: cellH, years: years };
