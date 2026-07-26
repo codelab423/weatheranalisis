@@ -408,7 +408,20 @@
   /* ---------- canvas setup helper ---------- */
   function setupCanvas(canvas) {
     var cssWidth = canvas.parentElement.clientWidth;
-    var cssHeight = canvas.height && canvas.getAttribute('height') ? +canvas.getAttribute('height') : canvas.clientHeight;
+    // Resolve the *intended* logical height exactly once (from the original
+    // height="..." markup attribute, or the CSS-driven clientHeight for canvases
+    // without one, e.g. the sparklines), then pin it on the element forever.
+    // We deliberately never re-derive this on later calls: canvas.height below
+    // rewrites the same "height" attribute to a device-scaled pixel value, and
+    // clientHeight is unreliable pre-layout (a bare height attribute with no
+    // width attribute makes the browser stretch the box to preserve the
+    // default 300:height aspect ratio against the full container width) — both
+    // would compound into runaway growth if read back on every render.
+    if (!canvas.dataset.logicalHeight) {
+      var initial = +canvas.getAttribute('height') || canvas.clientHeight || 150;
+      canvas.dataset.logicalHeight = String(initial);
+    }
+    var cssHeight = +canvas.dataset.logicalHeight;
     var dpr = window.devicePixelRatio || 1;
     canvas.style.width = cssWidth + "px";
     canvas.style.height = cssHeight + "px";
@@ -1043,9 +1056,14 @@
       a.href = ev.source.url; a.textContent = ev.source.name;
       grid.appendChild(card);
     });
-    EVENTS.forEach(function (ev) { renderSparkline(ev); });
+    EVENTS.forEach(function (ev) {
+      renderSparkline(ev);
+      attachSparklineInteraction(ev);
+    });
   }
 
+  // Pure draw, safe to call as often as needed (hover, resize, ...):
+  // never attaches listeners itself, so it can never stack them.
   function renderSparkline(ev) {
     var canvas = document.getElementById('spark-' + ev.date);
     if (!canvas) return;
@@ -1080,19 +1098,6 @@
     });
     ctx.stroke();
 
-    // hover
-    canvas.addEventListener('mousemove', function (e) {
-      var rect = canvas.getBoundingClientRect();
-      var x = e.clientX - rect.left;
-      var i = Math.round(((x - pad) / (W - pad * 2)) * (data.length - 1));
-      i = Math.max(0, Math.min(data.length - 1, i));
-      renderSparkline(ev); // redraw base
-      var ctx2 = canvas.getContext('2d');
-      var px = xAt(i), py = yAt(data[i].v);
-      ctx2.fillStyle = C.text;
-      ctx2.beginPath(); ctx2.arc(px, py, 3, 0, Math.PI * 2); ctx2.fill();
-    });
-
     // labels: first/last date + min/max
     ctx.fillStyle = C.textMuted;
     ctx.font = "10px system-ui, -apple-system, sans-serif";
@@ -1100,6 +1105,35 @@
     ctx.fillText(fmtDateShort(data[0].t.slice(0, 10)), pad, 10);
     ctx.textAlign = "right";
     ctx.fillText(fmtDateShort(data[data.length - 1].t.slice(0, 10)), W - pad, 10);
+  }
+
+  // Attaches the hover listener exactly once per card; the listener itself
+  // only ever redraws the existing canvas, it never re-attaches anything.
+  function attachSparklineInteraction(ev) {
+    var canvas = document.getElementById('spark-' + ev.date);
+    if (!canvas || canvas.dataset.hoverBound) return;
+    canvas.dataset.hoverBound = '1';
+    canvas.addEventListener('mousemove', function (e) {
+      var data = EVENTS_HOURLY[ev.date];
+      if (!data || !data.length) return;
+      var rect = canvas.getBoundingClientRect();
+      var W = rect.width, H = rect.height, pad = 6;
+      var vals = data.map(function (p) { return p.v; });
+      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      var range = Math.max(1, max - min);
+      function xAt(i) { return pad + (i / (data.length - 1)) * (W - pad * 2); }
+      function yAt(v) { return H - pad - ((v - min) / range) * (H - pad * 2); }
+      var x = e.clientX - rect.left;
+      var i = Math.round(((x - pad) / (W - pad * 2)) * (data.length - 1));
+      i = Math.max(0, Math.min(data.length - 1, i));
+      renderSparkline(ev); // redraw base (does not touch listeners)
+      var ctx2 = canvas.getContext('2d');
+      var C = colors();
+      var px = xAt(i), py = yAt(data[i].v);
+      ctx2.fillStyle = C.text;
+      ctx2.beginPath(); ctx2.arc(px, py, 3, 0, Math.PI * 2); ctx2.fill();
+    });
+    canvas.addEventListener('mouseleave', function () { renderSparkline(ev); });
   }
 
   /* ================= NAV HELPERS ================= */
