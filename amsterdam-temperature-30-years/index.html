@@ -71,6 +71,19 @@
   header.page-head h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
   header.page-head p { margin: 0; color: var(--text-secondary); font-size: 14.5px; max-width: 720px; line-height: 1.5; }
 
+  .summary-card {
+    background: linear-gradient(180deg, var(--blue-wash), var(--surface-1) 70%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 20px 18px;
+    margin-bottom: 18px;
+  }
+  .summary-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--blue); margin-bottom: 6px; }
+  .summary-text { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--text-primary); max-width: 820px; }
+  .summary-text b { font-weight: 700; }
+  .summary-text .hot { color: var(--red); }
+  .summary-text .cold { color: var(--blue); }
+
   .stat-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -192,6 +205,11 @@
     <h1>Amsterdam Temperature Anomalies, 1996–2025</h1>
     <p>Hourly KNMI station readings for Amsterdam, aggregated to daily averages and compared against a 30‑year day‑of‑year normal. This dashboard surfaces the days that broke furthest from that normal — and the real weather events behind the biggest swings.</p>
   </header>
+
+  <div class="summary-card" id="summaryCard">
+    <div class="summary-label">Key findings</div>
+    <p class="summary-text" id="summaryText"></p>
+  </div>
 
   <div class="stat-row" id="statRow"></div>
 
@@ -437,15 +455,20 @@
   }
 
   /* ================= STAT TILES ================= */
-  function renderStats() {
-    var hottest = DAILY.reduce(function (a, b) { return b.tx > a.tx ? b : a; });
-    var coldest = DAILY.reduce(function (a, b) { return b.tn < a.tn ? b : a; });
-    // least-squares linear trend across annual means (robust to any single noisy year)
+  // least-squares linear trend across annual means (robust to any single noisy year)
+  function computeTrend() {
     var nY = YEARLY.length;
     var sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
     YEARLY.forEach(function (p) { sumX += p.y; sumY += p.t; sumXY += p.y * p.t; sumXX += p.y * p.y; });
     var slope = (nY * sumXY - sumX * sumY) / (nY * sumXX - sumX * sumX);
     var trendTotal = slope * (YEARLY[nY - 1].y - YEARLY[0].y);
+    return { slope: slope, trendTotal: trendTotal };
+  }
+
+  function renderStats() {
+    var hottest = DAILY.reduce(function (a, b) { return b.tx > a.tx ? b : a; });
+    var coldest = DAILY.reduce(function (a, b) { return b.tn < a.tn ? b : a; });
+    var trend = computeTrend(), slope = trend.slope, trendTotal = trend.trendTotal;
     var stats = [
       { label: "Hottest day recorded", value: hottest.tx.toFixed(1) + "°C", sub: fmtDate(hottest.d), cls: "up" },
       { label: "Coldest day recorded", value: coldest.tn.toFixed(1) + "°C", sub: fmtDate(coldest.d), cls: "down" },
@@ -465,6 +488,30 @@
       el.querySelector('.sub').textContent = s.sub;
       row.appendChild(el);
     });
+  }
+
+  // A short, data-driven "lede" paragraph — every number here is computed
+  // from DAILY/YEARLY/EVENTS at render time, never hand-typed, so it can't
+  // drift out of sync with the data or the charts below it.
+  function renderSummary() {
+    var el = document.getElementById('summaryText');
+    if (!el) return;
+    var hottest = DAILY.reduce(function (a, b) { return b.tx > a.tx ? b : a; });
+    var coldest = DAILY.reduce(function (a, b) { return b.tn < a.tn ? b : a; });
+    var trend = computeTrend();
+    var perDecade = trend.slope * 10;
+    var lastYear = YEARLY[YEARLY.length - 1].y;
+    var recentCutoff = lastYear - 9; // "the last 10 years"
+
+    var top20Warm = DAILY.slice().sort(function (a, b) { return b.am - a.am; }).slice(0, 20);
+    var recentWarmCount = top20Warm.filter(function (d) { return d.year >= recentCutoff; }).length;
+
+    var recentEventCount = EVENTS.filter(function (e) { return +e.date.slice(0, 4) >= recentCutoff; }).length;
+
+    el.innerHTML =
+      'Amsterdam has warmed by roughly <b>' + sign(perDecade) + perDecade.toFixed(2) + '°C per decade</b> since 1996 — about <b>' + sign(trend.trendTotal) + trend.trendTotal.toFixed(1) + '°C</b> in annual average temperature over the full 30 years. ' +
+      'The single hottest day on record is <b class="hot">' + fmtDate(hottest.d) + '</b>, which reached <b class="hot">' + hottest.tx.toFixed(1) + '°C</b>; the coldest is <b class="cold">' + fmtDate(coldest.d) + '</b>, which fell to <b class="cold">' + coldest.tn.toFixed(1) + '°C</b>. ' +
+      'Extreme heat is also increasingly front-loaded into recent years: <b>' + recentWarmCount + ' of the 20 warmest single-day anomalies</b> in this entire record happened in just the last decade (' + recentCutoff + '–' + lastYear + '), and <b>' + recentEventCount + ' of the 12 headline weather events</b> profiled below occurred since ' + recentCutoff + '.';
   }
 
   /* ================= MAIN ANOMALY CHART ================= */
@@ -647,18 +694,25 @@
     var selecting = false, selMoved = false, selStartX = 0, selCurX = 0, justDragged = false;
     var SEL_MIN_PX = 5;
 
-    canvas.addEventListener('mousemove', function (e) {
+    // Shared by mouse and touch: a touch has no free-roaming "hover" before
+    // contact, so touchstart begins the same selecting state a mousedown
+    // would, and this function keeps showing the value tooltip right up
+    // until the finger/mouse actually moves past the drag threshold — only
+    // then does it switch into the zoom-range preview.
+    function handleMove(clientX) {
       if (!mainPlot) return;
       var rect = canvas.getBoundingClientRect();
-      var x = e.clientX - rect.left;
+      var x = clientX - rect.left;
 
       if (selecting) {
         selCurX = x;
         if (Math.abs(selCurX - selStartX) > SEL_MIN_PX) selMoved = true;
-        renderMainChart();
-        if (selMoved) drawMainSelection(selStartX, selCurX);
-        tooltip.style.opacity = 0;
-        return;
+        if (selMoved) {
+          renderMainChart();
+          drawMainSelection(selStartX, selCurX);
+          tooltip.style.opacity = 0;
+          return;
+        }
       }
 
       var hitMarker = null;
@@ -672,7 +726,7 @@
       var html;
       if (hitMarker) {
         var ev = EVENTS_BY_DATE[hitMarker.date];
-        html = '<div class="tt-row"><b>' + fmtDate(ev.date) + '</b></div><div>' + ev.headline + '</div><div style="color:var(--text-muted);margin-top:4px;">Click to jump to the story</div>';
+        html = '<div class="tt-row"><b>' + fmtDate(ev.date) + '</b></div><div>' + ev.headline + '</div><div style="color:var(--text-muted);margin-top:4px;">Tap to jump to the story</div>';
       } else {
         var label = bin.start === bin.end ? fmtDate(bin.start) : (fmtDateShort(bin.start) + " – " + fmtDate(bin.end));
         html = '<div class="tt-row"><span>' + label + '</span><span class="tt-val">' + bin.tmAvg.toFixed(1) + '°C</span></div>' +
@@ -683,21 +737,20 @@
       tooltip.style.left = x + "px";
       tooltip.style.top = "0px";
       tooltip.style.opacity = 1;
-    });
-    canvas.addEventListener('mouseleave', function () {
-      tooltip.style.opacity = 0;
-      if (selecting) { selecting = false; selMoved = false; renderMainChart(); }
-    });
+    }
 
-    canvas.addEventListener('mousedown', function (e) {
+    function handleStart(clientX) {
       var rect = canvas.getBoundingClientRect();
       selecting = true; selMoved = false;
-      selStartX = e.clientX - rect.left;
+      selStartX = clientX - rect.left;
       selCurX = selStartX;
-    });
-    window.addEventListener('mouseup', function () {
+      handleMove(clientX); // show the value tooltip immediately on touch contact
+    }
+
+    function handleEnd() {
       if (!selecting) return;
       selecting = false;
+      tooltip.style.opacity = 0;
       if (selMoved && mainPlot) {
         var span = mainView.i1 - mainView.i0;
         var dataLo = mainView.i0 + ((Math.min(selStartX, selCurX) - mainPlot.padLeft) / mainPlot.plotW) * span;
@@ -709,24 +762,50 @@
       } else {
         renderMainChart();
       }
-    });
+    }
 
-    canvas.addEventListener('click', function (e) {
+    function handleTap(clientX) {
       if (justDragged) { justDragged = false; return; }
       var rect = canvas.getBoundingClientRect();
-      var x = e.clientX - rect.left;
+      var x = clientX - rect.left;
       for (var i = 0; i < mainMarkers.length; i++) {
         if (Math.abs(mainMarkers[i].x - x) < 6) {
           jumpToEvent(mainMarkers[i].date);
           return;
         }
       }
-    });
+    }
 
+    canvas.addEventListener('mousemove', function (e) { handleMove(e.clientX); });
+    canvas.addEventListener('mouseleave', function () {
+      tooltip.style.opacity = 0;
+      if (selecting) { selecting = false; selMoved = false; renderMainChart(); }
+    });
+    canvas.addEventListener('mousedown', function (e) { handleStart(e.clientX); });
+    window.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('click', function (e) { handleTap(e.clientX); });
     canvas.addEventListener('dblclick', function () {
       mainView = clampMainView(rangeIndexBounds(currentRange));
       renderMainChart();
     });
+
+    // Touch: a tap-and-hold shows the tooltip (via handleStart -> handleMove),
+    // dragging past the threshold previews the zoom range, lifting the finger
+    // either commits the zoom or (if it never moved) jumps to a tapped marker.
+    canvas.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      handleStart(e.touches[0].clientX);
+    }, { passive: true });
+    canvas.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 1) return;
+      if (selMoved) e.preventDefault(); // lock the page once a real drag-to-zoom starts
+      handleMove(e.touches[0].clientX);
+    }, { passive: false });
+    // A simple tap (no movement) is left to the browser's own synthesized
+    // "click" event afterward (already wired above) rather than handled here
+    // directly, so a tap on a marker isn't jumped-to twice.
+    canvas.addEventListener('touchend', handleEnd);
+    canvas.addEventListener('touchcancel', handleEnd);
 
     var resetBtn = document.getElementById('mainResetZoom');
     if (resetBtn) resetBtn.addEventListener('click', function () {
@@ -907,18 +986,20 @@
     var selecting = false, selMoved = false, selStartX = 0, selStartY = 0, selCurX = 0, selCurY = 0, justDragged = false;
     var SEL_MIN_PX = 5;
 
-    canvas.addEventListener('mousemove', function (e) {
+    function handleMove(clientX, clientY) {
       if (!calCellGeom) return;
       var rect = canvas.getBoundingClientRect();
-      var x = e.clientX - rect.left, y = e.clientY - rect.top;
+      var x = clientX - rect.left, y = clientY - rect.top;
 
       if (selecting) {
         selCurX = x; selCurY = y;
         if (Math.abs(selCurX - selStartX) > SEL_MIN_PX || Math.abs(selCurY - selStartY) > SEL_MIN_PX) selMoved = true;
-        renderCalendar();
-        if (selMoved) drawCalSelection(selStartX, selStartY, selCurX, selCurY);
-        tooltip.style.opacity = 0;
-        return;
+        if (selMoved) {
+          renderCalendar();
+          drawCalSelection(selStartX, selStartY, selCurX, selCurY);
+          tooltip.style.opacity = 0;
+          return;
+        }
       }
 
       var rc = calRowColAt(x, y);
@@ -931,25 +1012,24 @@
       tooltip.innerHTML = '<div class="tt-row"><b>' + fmtDate(rec.d) + '</b></div>' +
         '<div class="tt-row"><span>Avg temp</span><span class="tt-val">' + rec.tm.toFixed(1) + '°C</span></div>' +
         '<div class="tt-row"><span>vs. normal</span><span class="tt-val" style="color:' + (rec.am >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(rec.am) + rec.am.toFixed(1) + '°C</span></div>' +
-        (isStory ? '<div style="color:var(--orange);margin-top:4px;">Click for the story</div>' : '<div style="color:var(--text-muted);margin-top:4px;">Drag to zoom in</div>');
+        (isStory ? '<div style="color:var(--orange);margin-top:4px;">Tap for the story</div>' : '<div style="color:var(--text-muted);margin-top:4px;">Drag to zoom in</div>');
       tooltip.style.left = x + "px";
       tooltip.style.top = "0px";
       tooltip.style.opacity = 1;
-    });
-    canvas.addEventListener('mouseleave', function () {
-      tooltip.style.opacity = 0;
-      if (selecting) { selecting = false; selMoved = false; renderCalendar(); }
-    });
+    }
 
-    canvas.addEventListener('mousedown', function (e) {
+    function handleStart(clientX, clientY) {
       var rect = canvas.getBoundingClientRect();
       selecting = true; selMoved = false;
-      selStartX = e.clientX - rect.left; selStartY = e.clientY - rect.top;
+      selStartX = clientX - rect.left; selStartY = clientY - rect.top;
       selCurX = selStartX; selCurY = selStartY;
-    });
-    window.addEventListener('mouseup', function () {
+      handleMove(clientX, clientY); // show the value tooltip immediately on touch contact
+    }
+
+    function handleEnd() {
       if (!selecting) return;
       selecting = false;
+      tooltip.style.opacity = 0;
       if (selMoved && calCellGeom) {
         var newX0 = calView.x0 + (Math.min(selStartX, selCurX) - calCellGeom.padLeft) / calCellGeom.cellW;
         var newX1 = calView.x0 + (Math.max(selStartX, selCurX) - calCellGeom.padLeft) / calCellGeom.cellW;
@@ -962,23 +1042,46 @@
       } else {
         renderCalendar();
       }
-    });
+    }
 
-    canvas.addEventListener('click', function (e) {
+    function handleTap(clientX, clientY) {
       if (justDragged) { justDragged = false; return; }
       var rect = canvas.getBoundingClientRect();
-      var x = e.clientX - rect.left, y = e.clientY - rect.top;
+      var x = clientX - rect.left, y = clientY - rect.top;
       var rc = calRowColAt(x, y);
       if (rc.row < 0 || rc.row >= calCellGeom.years.length || rc.col < 0 || rc.col > 365) return;
       var year = calCellGeom.years[rc.row];
       var rec = calLookup[year + "-" + (rc.col + 1)];
       if (rec && EVENTS_BY_DATE[rec.d]) jumpToEvent(rec.d);
-    });
+    }
 
+    canvas.addEventListener('mousemove', function (e) { handleMove(e.clientX, e.clientY); });
+    canvas.addEventListener('mouseleave', function () {
+      tooltip.style.opacity = 0;
+      if (selecting) { selecting = false; selMoved = false; renderCalendar(); }
+    });
+    canvas.addEventListener('mousedown', function (e) { handleStart(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('click', function (e) { handleTap(e.clientX, e.clientY); });
     canvas.addEventListener('dblclick', function () {
       calView = clampCalView({ x0: CAL_FULL_VIEW.x0, x1: CAL_FULL_VIEW.x1, y0: CAL_FULL_VIEW.y0, y1: CAL_FULL_VIEW.y1 });
       renderCalendar();
     });
+
+    canvas.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      handleStart(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    canvas.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 1) return;
+      if (selMoved) e.preventDefault();
+      handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+    // A simple tap (no movement) is left to the browser's own synthesized
+    // "click" event afterward (already wired above) rather than handled here
+    // directly, so a tap on a story cell isn't jumped-to twice.
+    canvas.addEventListener('touchend', handleEnd);
+    canvas.addEventListener('touchcancel', handleEnd);
 
     document.getElementById('calResetZoom').addEventListener('click', function () {
       calView = clampCalView({ x0: CAL_FULL_VIEW.x0, x1: CAL_FULL_VIEW.x1, y0: CAL_FULL_VIEW.y0, y1: CAL_FULL_VIEW.y1 });
@@ -1118,7 +1221,8 @@
     var tooltip = document.getElementById('spark-tt-' + ev.date);
     if (!canvas || canvas.dataset.hoverBound) return;
     canvas.dataset.hoverBound = '1';
-    canvas.addEventListener('mousemove', function (e) {
+
+    function handleMove(clientX) {
       var data = EVENTS_HOURLY[ev.date];
       if (!data || !data.length) return;
       var rect = canvas.getBoundingClientRect();
@@ -1128,7 +1232,7 @@
       var range = Math.max(1, max - min);
       function xAt(i) { return pad + (i / (data.length - 1)) * (W - pad * 2); }
       function yAt(v) { return H - pad - ((v - min) / range) * (H - pad * 2); }
-      var x = e.clientX - rect.left;
+      var x = clientX - rect.left;
       var i = Math.round(((x - pad) / (W - pad * 2)) * (data.length - 1));
       i = Math.max(0, Math.min(data.length - 1, i));
       renderSparkline(ev); // redraw base (does not touch listeners)
@@ -1143,11 +1247,28 @@
         tooltip.style.top = py + "px";
         tooltip.style.opacity = 1;
       }
-    });
-    canvas.addEventListener('mouseleave', function () {
+    }
+    function handleEnd() {
       renderSparkline(ev);
       if (tooltip) tooltip.style.opacity = 0;
-    });
+    }
+
+    canvas.addEventListener('mousemove', function (e) { handleMove(e.clientX); });
+    canvas.addEventListener('mouseleave', handleEnd);
+    // Touch has no free-roaming "hover" before contact, so drive the same
+    // tooltip logic directly off touchstart/touchmove; preventDefault keeps
+    // a horizontal finger-drag along the chart from scrolling the page.
+    canvas.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      handleMove(e.touches[0].clientX);
+    }, { passive: true });
+    canvas.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 1) return;
+      e.preventDefault();
+      handleMove(e.touches[0].clientX);
+    }, { passive: false });
+    canvas.addEventListener('touchend', handleEnd);
+    canvas.addEventListener('touchcancel', handleEnd);
   }
 
   /* ================= NAV HELPERS ================= */
@@ -1167,6 +1288,7 @@
   }
   buildCalLookup();
   renderStats();
+  renderSummary();
   renderMainChart();
   attachMainInteraction();
   renderCalLegend();
