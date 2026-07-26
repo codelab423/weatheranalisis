@@ -655,7 +655,7 @@
     } else {
       var n = idxHi - idxLo + 1;
       step = Math.max(1, Math.round(n / 7));
-      for (i = idxLo; i <= idxHi; i += step) ticks.push({ idx: i, label: fmtDateShort(DAILY[i].d) });
+      for (i = idxLo; i <= idxHi; i += step) ticks.push({ idx: i, label: fmtDateShort(DAILY[i].d) + " '" + DAILY[i].d.slice(2, 4) });
     }
     return ticks;
   }
