@@ -337,6 +337,10 @@
     en: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
     nl: ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"]
   };
+  var MONTHS_FULL = {
+    en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
+    nl: ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"]
+  };
   var LANG = (localStorage.getItem('dashLang') === 'nl') ? 'nl' : 'en';
   function fmtDate(iso) {
     var p = iso.split("-"); var y = +p[0], m = +p[1], d = +p[2];
@@ -648,14 +652,18 @@
       seen = {};
       for (i = idxLo; i <= idxHi; i++) {
         var ym = DAILY[i].d.slice(0, 7);
-        if (!(ym in seen)) { seen[ym] = i; ticks.push({ idx: i, label: MONTHS[LANG][+DAILY[i].d.slice(5, 7) - 1] + " '" + DAILY[i].d.slice(2, 4) }); }
+        if (!(ym in seen)) { seen[ym] = i; ticks.push({ idx: i, label: MONTHS_FULL[LANG][+DAILY[i].d.slice(5, 7) - 1] + " " + DAILY[i].d.slice(0, 4) }); }
       }
-      step = Math.max(1, Math.ceil(ticks.length / 10));
+      step = Math.max(1, Math.ceil(ticks.length / 6));
       ticks = ticks.filter(function (t, ti) { return ti % step === 0; });
     } else {
       var n = idxHi - idxLo + 1;
-      step = Math.max(1, Math.round(n / 7));
-      for (i = idxLo; i <= idxHi; i += step) ticks.push({ idx: i, label: fmtDateShort(DAILY[i].d) + " '" + DAILY[i].d.slice(2, 4) });
+      step = Math.max(1, Math.round(n / 5));
+      for (i = idxLo; i <= idxHi; i += step) {
+        var p = DAILY[i].d.split("-"); var yy = +p[0], mm = +p[1], dd = +p[2];
+        var monFull = MONTHS_FULL[LANG][mm - 1];
+        ticks.push({ idx: i, label: LANG === 'nl' ? (dd + " " + monFull + " " + yy) : (monFull + " " + dd + ", " + yy) });
+      }
     }
     return ticks;
   }
