@@ -172,7 +172,7 @@
   .event-source { font-size: 12px; }
   .event-source a { color: var(--blue); text-decoration:none; }
   .event-source a:hover { text-decoration:underline; }
-  .spark-wrap { width:100%; margin: 6px 0 10px; }
+  .spark-wrap { width:100%; margin: 6px 0 10px; position: relative; }
   canvas.spark { width:100%; height:70px; display:block; }
 
   footer.page-foot { margin-top: 30px; font-size: 12px; color: var(--text-muted); line-height:1.6; border-top: 1px solid var(--grid); padding-top: 16px; }
@@ -283,6 +283,10 @@
   function fmtDateShort(iso) {
     var p = iso.split("-"); var m = +p[1], d = +p[2];
     return MONTHS[m - 1] + " " + d;
+  }
+  function fmtDateTime(isoT) {
+    var parts = isoT.split("T");
+    return fmtDateShort(parts[0]) + ", " + parts[1];
   }
   function sign(n) { return n > 0 ? "+" : ""; }
   function round1(n) { return Math.round(n * 10) / 10; }
@@ -1046,7 +1050,7 @@
         '<div class="event-head"><span class="badge ' + (ev.type === 'heat' ? 'heat' : 'cold') + '">' + (ev.type === 'heat' ? 'Heat' : 'Cold') + '</span><span class="event-date"></span></div>' +
         '<div class="event-title"></div>' +
         metrics +
-        '<div class="spark-wrap"><canvas class="spark" id="spark-' + ev.date + '"></canvas></div>' +
+        '<div class="spark-wrap"><canvas class="spark" id="spark-' + ev.date + '"></canvas><div class="tooltip" id="spark-tt-' + ev.date + '"></div></div>' +
         '<div class="event-desc"></div>' +
         '<div class="event-source">Source: <a target="_blank" rel="noopener"></a></div>';
       card.querySelector('.event-date').textContent = fmtDate(ev.date);
@@ -1111,6 +1115,7 @@
   // only ever redraws the existing canvas, it never re-attaches anything.
   function attachSparklineInteraction(ev) {
     var canvas = document.getElementById('spark-' + ev.date);
+    var tooltip = document.getElementById('spark-tt-' + ev.date);
     if (!canvas || canvas.dataset.hoverBound) return;
     canvas.dataset.hoverBound = '1';
     canvas.addEventListener('mousemove', function (e) {
@@ -1132,8 +1137,17 @@
       var px = xAt(i), py = yAt(data[i].v);
       ctx2.fillStyle = C.text;
       ctx2.beginPath(); ctx2.arc(px, py, 3, 0, Math.PI * 2); ctx2.fill();
+      if (tooltip) {
+        tooltip.innerHTML = '<div class="tt-row"><span>' + fmtDateTime(data[i].t) + '</span><span class="tt-val">' + data[i].v.toFixed(1) + '°C</span></div>';
+        tooltip.style.left = px + "px";
+        tooltip.style.top = py + "px";
+        tooltip.style.opacity = 1;
+      }
     });
-    canvas.addEventListener('mouseleave', function () { renderSparkline(ev); });
+    canvas.addEventListener('mouseleave', function () {
+      renderSparkline(ev);
+      if (tooltip) tooltip.style.opacity = 0;
+    });
   }
 
   /* ================= NAV HELPERS ================= */
