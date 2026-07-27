@@ -655,7 +655,10 @@
     if (isFull) { hint.textContent = ""; return; }
     var lo = Math.max(0, Math.min(DAILY.length - 1, Math.floor(mainView.i0)));
     var hi = Math.max(0, Math.min(DAILY.length - 1, Math.ceil(mainView.i1) - 1));
-    hint.textContent = t("Zoomed: ", "Ingezoomd: ") + fmtDateShort(DAILY[lo].d) + " – " + fmtDate(DAILY[hi].d);
+    // Always show the year on both ends, even for a same-year range: leaving
+    // it off the start date (fmtDateShort) made a multi-year window like
+    // "Apr 2017 - Sep 2018" read as if it were just "Apr - Sep 2018".
+    hint.textContent = t("Zoomed: ", "Ingezoomd: ") + fmtDate(DAILY[lo].d) + " – " + fmtDate(DAILY[hi].d);
   }
 
   function mainTicks(idxLo, idxHi, span, plotW) {
@@ -788,6 +791,13 @@
         ctx.setLineDash([3, 3]);
         ctx.beginPath(); ctx.moveTo(px, padTop); ctx.lineTo(px, H - padBottom); ctx.stroke();
         ctx.setLineDash([]);
+        // give the pinned line the same little "head" as the orange story
+        // markers (a hollow dot instead of a filled one, so it still reads
+        // as a different kind of marker) — without it, the two line styles
+        // don't start at the same height and look inconsistent side by side.
+        ctx.beginPath(); ctx.arc(px, padTop - 8, 3.5, 0, Math.PI * 2);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       }
     }
 
