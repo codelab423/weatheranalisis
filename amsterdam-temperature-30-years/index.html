@@ -318,6 +318,19 @@
     <div class="events-grid" id="eventsGrid"></div>
   </div>
 
+  <div class="card">
+    <h2 id="yearlyChartTitle">Average temperature per year</h2>
+    <p class="card-sub" id="yearlyChartSub">Each point is one year's average across all its daily readings. The dashed line is the linear trend across the full 30 years.</p>
+    <div class="chart-canvas-wrap">
+      <canvas class="chart" id="yearlyChart" height="220"></canvas>
+      <div class="tooltip" id="yearlyTooltip"></div>
+    </div>
+    <div class="legend-row">
+      <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span><span id="legendYearlyAvg">Yearly average</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--text-muted); border-radius:0; width:14px; height:2px;"></span><span id="legendYearlyTrend">Linear trend</span></span>
+    </div>
+  </div>
+
   <footer class="page-foot" id="pageFooter">
     Data: hourly temperature observations, Amsterdam Schiphol (KNMI station 240), Jan 1996 – Dec 2025, 262,992 hourly readings aggregated to 10,958 days. "Normal" = mean of that calendar day ± 7 days across all 30 years. Event descriptions summarize public reporting cited on each card; figures there refer to national/regional records (De Bilt, Gilze‑Rijen, etc.), which may differ slightly from this Schiphol station's own reading on the same day.
   </footer>
@@ -561,8 +574,9 @@
     var sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
     YEARLY.forEach(function (p) { sumX += p.y; sumY += p.t; sumXY += p.y * p.t; sumXX += p.y * p.y; });
     var slope = (nY * sumXY - sumX * sumY) / (nY * sumXX - sumX * sumX);
+    var intercept = (sumY - slope * sumX) / nY;
     var trendTotal = slope * (YEARLY[nY - 1].y - YEARLY[0].y);
-    return { slope: slope, trendTotal: trendTotal };
+    return { slope: slope, intercept: intercept, trendTotal: trendTotal };
   }
 
   function renderStats() {
@@ -623,6 +637,7 @@
   var pinnedDate = null;
   var mainMarkers = []; // {x, date}
   var mainPlot = null; // {padLeft,plotW,bins}
+  var yearlyPlot = null; // {padLeft,plotW,n,xFor,yFor}
   var mainView = { i0: 0, i1: DAILY.length }; // visible window, in absolute day-index units (float)
   var MAIN_MIN_SPAN = 7; // don't zoom in past ~1 week visible
 
@@ -1253,6 +1268,137 @@
     });
   }
 
+  /* ================= YEARLY AVERAGE CHART ================= */
+  // Just 30 points, always fully in view — no zoom/pan needed here, unlike
+  // the daily charts above. The trend line reuses computeTrend()'s
+  // least-squares fit so it can never drift out of sync with the "Warming
+  // trend" stat tile or the summary sentence, which compute it the same way.
+  function renderYearlyChart() {
+    var canvas = document.getElementById('yearlyChart');
+    if (!canvas) return;
+    var setup = setupCanvas(canvas);
+    var ctx = setup.ctx, W = setup.w, H = setup.h;
+    var C = colors();
+    ctx.clearRect(0, 0, W, H);
+
+    var padTop = 14, padBottom = 20, padLeft = 32, padRight = 10;
+    var plotW = W - padLeft - padRight;
+    var plotH = H - padTop - padBottom;
+    var n = YEARLY.length;
+
+    var vals = YEARLY.map(function (p) { return p.t; });
+    var minT = Math.min.apply(null, vals), maxT = Math.max.apply(null, vals);
+    var pad = (maxT - minT) * 0.18 || 0.5;
+    var yLo = minT - pad, yHi = maxT + pad;
+
+    function xFor(i) { return padLeft + (n === 1 ? 0 : (i / (n - 1)) * plotW); }
+    function yFor(v) { return padTop + (1 - (v - yLo) / (yHi - yLo)) * plotH; }
+
+    // y gridlines + labels
+    ctx.font = "11px system-ui, -apple-system, sans-serif";
+    ctx.textBaseline = "middle";
+    var yTicks = 4;
+    for (var ti = 0; ti <= yTicks; ti++) {
+      var v = yLo + (ti / yTicks) * (yHi - yLo);
+      var y = yFor(v);
+      ctx.strokeStyle = C.grid;
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(W - padRight, y); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = C.textMuted;
+      ctx.textAlign = "right";
+      ctx.fillText(Math.round(v) + "°", padLeft - 6, y);
+    }
+
+    // dashed linear-trend line, drawn from the fit across the full 30 years
+    var trend = computeTrend();
+    ctx.strokeStyle = C.textMuted;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    YEARLY.forEach(function (p, i) {
+      var predicted = trend.intercept + trend.slope * p.y;
+      var x = xFor(i), y = yFor(predicted);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // actual yearly-average line + dots
+    ctx.strokeStyle = C.blue;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    YEARLY.forEach(function (p, i) {
+      var x = xFor(i), y = yFor(p.t);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = C.blue;
+    YEARLY.forEach(function (p, i) {
+      var x = xFor(i), y = yFor(p.t);
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // x-axis year labels, every 5 years plus the first/last — with a measured
+    // collision check (not just the fixed "every 5th") so nothing piles up
+    // on narrow screens. The first/last labels are anchored left/right
+    // instead of centered so a 4-digit year can't run off the canvas edge.
+    ctx.fillStyle = C.textMuted;
+    var candidates = [];
+    YEARLY.forEach(function (p, i) { if (p.y % 5 === 0 || i === 0 || i === n - 1) candidates.push(i); });
+    var lastLabelRight = -Infinity, labelGapPx = 6;
+    candidates.forEach(function (i, ci) {
+      var x = xFor(i);
+      var label = String(YEARLY[i].y);
+      var align = i === 0 ? "left" : (i === n - 1 ? "right" : "center");
+      var textW = ctx.measureText(label).width;
+      var labelLeft = align === "left" ? x : (align === "right" ? x - textW : x - textW / 2);
+      if (labelLeft < lastLabelRight + labelGapPx) return;
+      ctx.textAlign = align;
+      ctx.fillText(label, x, H - 4);
+      lastLabelRight = labelLeft + textW;
+    });
+
+    yearlyPlot = { padLeft: padLeft, plotW: plotW, n: n, xFor: xFor, yFor: yFor };
+  }
+
+  function attachYearlyInteraction() {
+    var canvas = document.getElementById('yearlyChart');
+    var tooltip = document.getElementById('yearlyTooltip');
+    if (!canvas || !tooltip || canvas.dataset.hoverBound) return;
+    canvas.dataset.hoverBound = "1";
+
+    function showTooltip(clientX) {
+      if (!yearlyPlot) return;
+      var rect = canvas.getBoundingClientRect();
+      var x = clientX - rect.left;
+      var rel = (x - yearlyPlot.padLeft) / yearlyPlot.plotW;
+      var idx = Math.max(0, Math.min(yearlyPlot.n - 1, Math.round(rel * (yearlyPlot.n - 1))));
+      var p = YEARLY[idx];
+      tooltip.innerHTML = '<div class="tt-row"><b>' + p.y + '</b></div>' +
+        '<div class="tt-row"><span>' + t("Yearly avg", "Jaargemiddelde") + '</span><span class="tt-val" style="color:var(--blue)">' + p.t.toFixed(2) + '°C</span></div>';
+      var tx = Math.max(0, Math.min(canvas.clientWidth, yearlyPlot.xFor(idx)));
+      tooltip.style.left = tx + "px";
+      tooltip.style.top = "0px";
+      tooltip.style.opacity = 1;
+    }
+    function hideTooltip() { tooltip.style.opacity = 0; }
+
+    canvas.addEventListener('mousemove', function (e) { showTooltip(e.clientX); });
+    canvas.addEventListener('mouseleave', hideTooltip);
+    canvas.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      showTooltip(e.touches[0].clientX);
+    }, { passive: true });
+    canvas.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 1) return;
+      showTooltip(e.touches[0].clientX);
+    }, { passive: true });
+    canvas.addEventListener('touchend', hideTooltip);
+    canvas.addEventListener('touchcancel', hideTooltip);
+  }
+
   /* ================= RANK TABLE ================= */
   var currentTab = 'warm';
   function renderRankTable() {
@@ -1505,6 +1651,12 @@
     setT('eventsSub',
       "Twelve of the most extreme days in this record, matched with the news coverage of the weather event that caused them. Each mini‑chart shows hourly temperature for the surrounding nine days.",
       "Twaalf van de meest extreme dagen uit deze reeks, gekoppeld aan de nieuwsberichten over de weersgebeurtenis die ze veroorzaakte. Elke mini-grafiek toont de uurlijkse temperatuur over de omliggende negen dagen.");
+    setT('yearlyChartTitle', "Average temperature per year", "Gemiddelde temperatuur per jaar");
+    setT('yearlyChartSub',
+      "Each point is one year's average across all its daily readings. The dashed line is the linear trend across the full 30 years.",
+      "Elk punt is het jaargemiddelde over alle dagwaarden van dat jaar. De stippellijn is de lineaire trend over alle 30 jaar.");
+    setT('legendYearlyAvg', "Yearly average", "Jaargemiddelde");
+    setT('legendYearlyTrend', "Linear trend", "Lineaire trend");
     setT('pageFooter',
       'Data: hourly temperature observations, Amsterdam Schiphol (KNMI station 240), Jan 1996 – Dec 2025, 262,992 hourly readings aggregated to 10,958 days. "Normal" = mean of that calendar day ± 7 days across all 30 years. Event descriptions summarize public reporting cited on each card; figures there refer to national/regional records (De Bilt, Gilze‑Rijen, etc.), which may differ slightly from this Schiphol station\'s own reading on the same day.',
       'Data: uurlijkse temperatuurmetingen, Amsterdam Schiphol (KNMI-station 240), jan 1996 – dec 2025, 262.992 uurmetingen samengevoegd tot 10.958 dagen. "Normaal" = gemiddelde van die kalenderdag ± 7 dagen over alle 30 jaar. De gebeurtenisbeschrijvingen vatten openbare berichtgeving samen die bij elke kaart staat vermeld; de genoemde cijfers verwijzen naar nationale/regionale records (De Bilt, Gilze-Rijen, etc.), die licht kunnen afwijken van de eigen meting van dit Schiphol-station op diezelfde dag.');
@@ -1525,6 +1677,7 @@
     renderCalendar();
     renderRankTable();
     renderEventCards();
+    renderYearlyChart();
   }
 
   var langEnBtn = document.getElementById('langEn'), langNlBtn = document.getElementById('langNl');
@@ -1599,6 +1752,8 @@
   attachCalInteraction();
   renderRankTable();
   renderEventCards();
+  renderYearlyChart();
+  attachYearlyInteraction();
 
   var resizeTimer;
   window.addEventListener('resize', function () {
@@ -1607,6 +1762,7 @@
       renderMainChart();
       renderCalendar();
       EVENTS.forEach(function (ev) { renderSparkline(ev); });
+      renderYearlyChart();
     }, 120);
   });
 })();
