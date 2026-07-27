@@ -252,6 +252,8 @@
       <button class="chip" data-range="2016-2025">2016–2025</button>
       <button class="chip" data-range="last5" id="last5Btn">Last 5 years</button>
       <button class="chip" id="mainResetZoom">Reset zoom</button>
+      <button class="chip" id="mainZoomIn" title="Zoom in">＋</button>
+      <button class="chip" id="mainZoomOut" title="Zoom out">－</button>
       <button class="chip zoom-help-toggle" id="mainZoomHelpBtn">▶ <span id="mainZoomHelpLabel">How to zoom</span></button>
       <span class="flabel" id="mainZoomHint"></span>
     </div>
@@ -945,6 +947,22 @@
       mainView = clampMainView(rangeIndexBounds(currentRange));
       renderMainChart();
     });
+
+    // Step buttons: an explicit, click-based way to go narrower/wider from
+    // wherever the view currently is (drag-to-zoom only ever narrows, and
+    // pinning a row from the rank table sets one particular width) —
+    // centered on the pinned day if there is one, else the view's middle.
+    function stepMainZoom(factor) {
+      var span = mainView.i1 - mainView.i0;
+      var center = (pinnedDate && DAILY_BY_DATE[pinnedDate]) ? DAILY_BY_DATE[pinnedDate].idx : (mainView.i0 + mainView.i1) / 2;
+      var newSpan = span * factor;
+      mainView = clampMainView({ i0: center - newSpan / 2, i1: center + newSpan / 2 });
+      renderMainChart();
+    }
+    var zoomInBtn = document.getElementById('mainZoomIn');
+    if (zoomInBtn) zoomInBtn.addEventListener('click', function () { stepMainZoom(0.5); });
+    var zoomOutBtn = document.getElementById('mainZoomOut');
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', function () { stepMainZoom(2); });
   }
 
   document.querySelectorAll('[data-range]').forEach(function (btn) {
@@ -1267,8 +1285,8 @@
           // with the table. Zoom to a tight window around the day whenever
           // it isn't already shown reasonably close up.
           var visible = d.idx >= mainView.i0 && d.idx <= mainView.i1;
-          if (!visible || (mainView.i1 - mainView.i0) > 120) {
-            mainView = clampMainView({ i0: d.idx - 45, i1: d.idx + 45 });
+          if (!visible || (mainView.i1 - mainView.i0) > 200) {
+            mainView = clampMainView({ i0: d.idx - 75, i1: d.idx + 75 });
           }
           renderMainChart();
           document.getElementById('mainChartTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
