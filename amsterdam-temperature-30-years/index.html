@@ -117,6 +117,8 @@
   }
   .card h2 { font-size: 16px; margin: 0 0 2px; font-weight: 700; }
   .card .card-sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 14px; }
+  .chart-note { font-size: 13px; color: var(--text-secondary); margin: 10px 0 0; }
+  .chart-note b { color: var(--text-primary); }
 
   .filter-row {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -329,6 +331,7 @@
       <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span><span id="legendYearlyAvg">Yearly average</span></span>
       <span class="legend-item"><span class="swatch" style="background:var(--text-muted); border-radius:0; width:14px; height:2px;"></span><span id="legendYearlyTrend">Linear trend</span></span>
     </div>
+    <p class="chart-note" id="yearlyTrendNote"></p>
   </div>
 
   <footer class="page-foot" id="pageFooter">
@@ -1361,6 +1364,16 @@
     });
 
     yearlyPlot = { padLeft: padLeft, plotW: plotW, n: n, xFor: xFor, yFor: yFor };
+
+    var note = document.getElementById('yearlyTrendNote');
+    if (note) {
+      var perDecade = trend.slope * 10;
+      var firstY = YEARLY[0].y, lastY = YEARLY[n - 1].y;
+      note.innerHTML = t(
+        "Warming trend: <b>" + sign(perDecade) + perDecade.toFixed(2) + "°C per decade</b> — <b>" + sign(trend.trendTotal) + trend.trendTotal.toFixed(2) + "°C</b> total over " + (lastY - firstY) + " years (" + firstY + "–" + lastY + "), from a least-squares fit across the annual averages.",
+        "Opwarmingstrend: <b>" + sign(perDecade) + perDecade.toFixed(2) + "°C per decennium</b> — <b>" + sign(trend.trendTotal) + trend.trendTotal.toFixed(2) + "°C</b> in totaal over " + (lastY - firstY) + " jaar (" + firstY + "–" + lastY + "), op basis van een kleinste-kwadratenfit over de jaargemiddeldes."
+      );
+    }
   }
 
   function attachYearlyInteraction() {
@@ -1386,9 +1399,16 @@
       ctx2.fillStyle = C.text;
       ctx2.beginPath(); ctx2.arc(px, py, 4, 0, Math.PI * 2); ctx2.fill();
       tooltip.innerHTML = '<div class="tt-row"><span>' + p.y + '</span><span class="tt-val">' + p.t.toFixed(1) + '°C</span></div>';
-      tooltip.style.left = px + "px";
       tooltip.style.top = py + "px";
       tooltip.style.opacity = 1;
+      // The box is centered on its "left" (transform: translateX(-50%)), so
+      // for the first/last points — which sit right at the plot's edge —
+      // half of it would otherwise render past the card/viewport edge and
+      // get clipped. Measure it once placed and pull it back in.
+      tooltip.style.left = px + "px";
+      var half = tooltip.offsetWidth / 2;
+      var clampedX = Math.max(half, Math.min(canvas.clientWidth - half, px));
+      tooltip.style.left = clampedX + "px";
     }
     function hideTooltip() { renderYearlyChart(); tooltip.style.opacity = 0; }
 
