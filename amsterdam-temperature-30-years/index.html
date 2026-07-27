@@ -320,15 +320,13 @@
 
   <div class="card">
     <h2 id="yearlyChartTitle">Average temperature per year</h2>
-    <p class="card-sub" id="yearlyChartSub">Each point is one year's average across all its daily readings, colored against the 30-year average. The dashed line is the linear trend across the full 30 years.</p>
+    <p class="card-sub" id="yearlyChartSub">Each point is one year's average across all its daily readings. The dashed line is the linear trend across the full 30 years.</p>
     <div class="chart-canvas-wrap">
       <canvas class="chart" id="yearlyChart" height="220"></canvas>
       <div class="tooltip" id="yearlyTooltip"></div>
     </div>
     <div class="legend-row">
-      <span class="legend-item"><span class="swatch" style="background:var(--red)"></span><span id="legendYearlyWarmer">Warmer than average</span></span>
-      <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span><span id="legendYearlyColder">Colder than average</span></span>
-      <span class="legend-item"><span class="swatch" style="background:var(--axis); border-radius:0; width:14px; height:1px;"></span><span id="legendYearlyAvg">30-yr average</span></span>
+      <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span><span id="legendYearlyAvg">Yearly average</span></span>
       <span class="legend-item"><span class="swatch" style="background:var(--text-muted); border-radius:0; width:14px; height:2px;"></span><span id="legendYearlyTrend">Linear trend</span></span>
     </div>
   </div>
@@ -1313,14 +1311,6 @@
       ctx.fillText(Math.round(v) + "°", padLeft - 6, y);
     }
 
-    // flat 30-year average — the reference the line is colored against below
-    var overallAvg = vals.reduce(function (s, v) { return s + v; }, 0) / n;
-    ctx.strokeStyle = C.axis || C.textMuted;
-    ctx.globalAlpha = 0.7;
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padLeft, yFor(overallAvg)); ctx.lineTo(W - padRight, yFor(overallAvg)); ctx.stroke();
-    ctx.globalAlpha = 1;
-
     // dashed linear-trend line, drawn from the fit across the full 30 years
     var trend = computeTrend();
     ctx.strokeStyle = C.textMuted;
@@ -1335,33 +1325,18 @@
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // actual yearly-average line, colored red/blue by whether each point is
-    // above or below the flat 30-year average — same red=warmer/blue=colder
-    // language as the daily chart above, just referenced to the all-time
-    // mean instead of a day-of-year normal. Segments that cross the average
-    // are split exactly at the crossing point rather than colored by
-    // whichever endpoint "wins", so the color change never lies about where
-    // it happens.
+    // actual yearly-average line + dots, one solid color throughout
+    ctx.strokeStyle = C.blue;
     ctx.lineWidth = 2;
-    for (var si = 0; si < n - 1; si++) {
-      var p0 = YEARLY[si], p1 = YEARLY[si + 1];
-      var x0 = xFor(si), y0 = yFor(p0.t), x1 = xFor(si + 1), y1 = yFor(p1.t);
-      var d0 = p0.t - overallAvg, d1 = p1.t - overallAvg;
-      if ((d0 >= 0) === (d1 >= 0)) {
-        ctx.strokeStyle = d0 >= 0 ? C.red : C.blue;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      } else {
-        var f = d0 / (d0 - d1);
-        var xm = x0 + (x1 - x0) * f, ym = y0 + (y1 - y0) * f;
-        ctx.strokeStyle = d0 >= 0 ? C.red : C.blue;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(xm, ym); ctx.stroke();
-        ctx.strokeStyle = d1 >= 0 ? C.red : C.blue;
-        ctx.beginPath(); ctx.moveTo(xm, ym); ctx.lineTo(x1, y1); ctx.stroke();
-      }
-    }
+    ctx.beginPath();
     YEARLY.forEach(function (p, i) {
       var x = xFor(i), y = yFor(p.t);
-      ctx.fillStyle = p.t >= overallAvg ? C.red : C.blue;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = C.blue;
+    YEARLY.forEach(function (p, i) {
+      var x = xFor(i), y = yFor(p.t);
       ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
     });
 
@@ -1385,7 +1360,7 @@
       lastLabelRight = labelLeft + textW;
     });
 
-    yearlyPlot = { padLeft: padLeft, plotW: plotW, n: n, xFor: xFor, yFor: yFor, avg: overallAvg };
+    yearlyPlot = { padLeft: padLeft, plotW: plotW, n: n, xFor: xFor, yFor: yFor };
   }
 
   function attachYearlyInteraction() {
@@ -1394,6 +1369,9 @@
     if (!canvas || !tooltip || canvas.dataset.hoverBound) return;
     canvas.dataset.hoverBound = "1";
 
+    // Same pattern as the event sparklines: redraw the base chart, then draw
+    // one highlighted dot at the hovered point and a single-row tooltip
+    // (year + temperature) anchored right on that dot.
     function showTooltip(clientX) {
       if (!yearlyPlot) return;
       var rect = canvas.getBoundingClientRect();
@@ -1401,16 +1379,18 @@
       var rel = (x - yearlyPlot.padLeft) / yearlyPlot.plotW;
       var idx = Math.max(0, Math.min(yearlyPlot.n - 1, Math.round(rel * (yearlyPlot.n - 1))));
       var p = YEARLY[idx];
-      var d = p.t - yearlyPlot.avg;
-      tooltip.innerHTML = '<div class="tt-row"><b>' + p.y + '</b></div>' +
-        '<div class="tt-row"><span>' + t("Yearly avg", "Jaargemiddelde") + '</span><span class="tt-val">' + p.t.toFixed(2) + '°C</span></div>' +
-        '<div class="tt-row"><span>' + t("vs. 30-yr average", "t.o.v. 30-jaars gem.") + '</span><span class="tt-val" style="color:' + (d >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(d) + d.toFixed(2) + '°C</span></div>';
-      var tx = Math.max(0, Math.min(canvas.clientWidth, yearlyPlot.xFor(idx)));
-      tooltip.style.left = tx + "px";
-      tooltip.style.top = "0px";
+      renderYearlyChart();
+      var px = yearlyPlot.xFor(idx), py = yearlyPlot.yFor(p.t);
+      var ctx2 = canvas.getContext('2d');
+      var C = colors();
+      ctx2.fillStyle = C.text;
+      ctx2.beginPath(); ctx2.arc(px, py, 4, 0, Math.PI * 2); ctx2.fill();
+      tooltip.innerHTML = '<div class="tt-row"><span>' + p.y + '</span><span class="tt-val">' + p.t.toFixed(1) + '°C</span></div>';
+      tooltip.style.left = px + "px";
+      tooltip.style.top = py + "px";
       tooltip.style.opacity = 1;
     }
-    function hideTooltip() { tooltip.style.opacity = 0; }
+    function hideTooltip() { renderYearlyChart(); tooltip.style.opacity = 0; }
 
     canvas.addEventListener('mousemove', function (e) { showTooltip(e.clientX); });
     canvas.addEventListener('mouseleave', hideTooltip);
@@ -1680,11 +1660,9 @@
       "Twaalf van de meest extreme dagen uit deze reeks, gekoppeld aan de nieuwsberichten over de weersgebeurtenis die ze veroorzaakte. Elke mini-grafiek toont de uurlijkse temperatuur over de omliggende negen dagen.");
     setT('yearlyChartTitle', "Average temperature per year", "Gemiddelde temperatuur per jaar");
     setT('yearlyChartSub',
-      "Each point is one year's average across all its daily readings, colored against the 30-year average. The dashed line is the linear trend across the full 30 years.",
-      "Elk punt is het jaargemiddelde over alle dagwaarden van dat jaar, gekleurd t.o.v. het 30-jaarsgemiddelde. De stippellijn is de lineaire trend over alle 30 jaar.");
-    setT('legendYearlyWarmer', "Warmer than average", "Warmer dan gemiddeld");
-    setT('legendYearlyColder', "Colder than average", "Kouder dan gemiddeld");
-    setT('legendYearlyAvg', "30-yr average", "30-jaars gemiddelde");
+      "Each point is one year's average across all its daily readings. The dashed line is the linear trend across the full 30 years.",
+      "Elk punt is het jaargemiddelde over alle dagwaarden van dat jaar. De stippellijn is de lineaire trend over alle 30 jaar.");
+    setT('legendYearlyAvg', "Yearly average", "Jaargemiddelde");
     setT('legendYearlyTrend', "Linear trend", "Lineaire trend");
     setT('pageFooter',
       'Data: hourly temperature observations, Amsterdam Schiphol (KNMI station 240), Jan 1996 – Dec 2025, 262,992 hourly readings aggregated to 10,958 days. "Normal" = mean of that calendar day ± 7 days across all 30 years. Event descriptions summarize public reporting cited on each card; figures there refer to national/regional records (De Bilt, Gilze‑Rijen, etc.), which may differ slightly from this Schiphol station\'s own reading on the same day.',
