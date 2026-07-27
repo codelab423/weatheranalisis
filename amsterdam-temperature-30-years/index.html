@@ -365,6 +365,17 @@
   function sign(n) { return n > 0 ? "+" : ""; }
   function t(en, nl) { return LANG === 'nl' ? nl : en; }
   function round1(n) { return Math.round(n * 10) / 10; }
+  // Anomaly for display, derived from the numbers as they're actually
+  // *printed* (via toFixed(1), same as the avg/normal cells) rather than
+  // rounding the raw anomaly independently — so "avg minus normal" always
+  // matches the anomaly badge next to it. Using Math.round(x*10)/10 here
+  // instead would still drift from toFixed(1) on negative .x5 values, since
+  // Math.round and toFixed break ties in opposite directions.
+  function dispAnom(tm, cm) {
+    var tm1 = parseFloat(tm.toFixed(1));
+    var cm1 = parseFloat(cm.toFixed(1));
+    return parseFloat((tm1 - cm1).toFixed(1));
+  }
 
   /* ---------- curated events ---------- */
   var EVENTS = [
@@ -1226,21 +1237,29 @@
       var tr = document.createElement('tr');
       tr.className = 'rank-row';
       var isStory = !!EVENTS_BY_DATE[d.d];
+      var dAm = dispAnom(d.tm, d.cm);
       tr.innerHTML =
         '<td>' + (i + 1) + '</td>' +
         '<td>' + fmtDate(d.d) + '</td>' +
         '<td class="num">' + d.tm.toFixed(1) + '°C</td>' +
         '<td class="num">' + d.cm.toFixed(1) + '°C</td>' +
-        '<td class="num"><span class="badge ' + (d.am >= 0 ? 'heat' : 'cold') + '">' + sign(d.am) + d.am.toFixed(1) + '°C</span></td>' +
+        '<td class="num"><span class="badge ' + (dAm >= 0 ? 'heat' : 'cold') + '">' + sign(dAm) + dAm.toFixed(1) + '°C</span></td>' +
         '<td class="num">' + d.tx.toFixed(1) + '° / ' + d.tn.toFixed(1) + '°</td>' +
         '<td>' + (isStory ? '<span class="story-flag">● ' + t("story", "verhaal") + '</span>' : '') + '</td>';
       tr.addEventListener('click', function () {
         if (isStory) jumpToEvent(d.d);
         else {
           pinnedDate = d.d;
-          // make sure the pinned day is actually visible: if the current zoom
-          // window doesn't include it, zoom out to the selected range first
-          if (d.idx < mainView.i0 || d.idx > mainView.i1) mainView = clampMainView(rangeIndexBounds(currentRange));
+          // Bars are aggregated into one bin per pixel once the visible span
+          // gets wide (e.g. the full 30-year view bins ~12 days together), so
+          // a day pinned inside a too-wide view lands on a diluted, averaged
+          // bar instead of its own — looking like the marker doesn't line up
+          // with the table. Zoom to a tight window around the day whenever
+          // it isn't already shown reasonably close up.
+          var visible = d.idx >= mainView.i0 && d.idx <= mainView.i1;
+          if (!visible || (mainView.i1 - mainView.i0) > 120) {
+            mainView = clampMainView({ i0: d.idx - 45, i1: d.idx + 45 });
+          }
           renderMainChart();
           document.getElementById('mainChartTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -1267,11 +1286,12 @@
       var card = document.createElement('div');
       card.className = 'event-card';
       card.id = 'event-' + ev.date;
+      var evAm = rec ? dispAnom(rec.tm, rec.cm) : 0;
       var metrics = rec ? (
         '<div class="event-metrics">' +
         '<span>' + t("Day avg", "Dag gem.") + ' <b>' + rec.tm.toFixed(1) + '°C</b></span>' +
         '<span>' + t("Normal", "Normaal") + ' <b>' + rec.cm.toFixed(1) + '°C</b></span>' +
-        '<span>' + t("Anomaly", "Afwijking") + ' <b style="color:' + (rec.am >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(rec.am) + rec.am.toFixed(1) + '°C</b></span>' +
+        '<span>' + t("Anomaly", "Afwijking") + ' <b style="color:' + (evAm >= 0 ? 'var(--red)' : 'var(--blue)') + '">' + sign(evAm) + evAm.toFixed(1) + '°C</b></span>' +
         '<span>' + t("Max/Min", "Max/min") + ' <b>' + rec.tx.toFixed(1) + '° / ' + rec.tn.toFixed(1) + '°</b></span>' +
         '</div>') : '';
       card.innerHTML =
